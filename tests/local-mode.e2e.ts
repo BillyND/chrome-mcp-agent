@@ -221,12 +221,15 @@ test.describe('local mode in Chromium', () => {
     const [a] = clients;
     const b = client('e2e-b');
     await b.initialize();
-    const [sa, sb] = await Promise.all([a.call('browser_snapshot'), b.call('browser_snapshot')]);
+    // Each client gets its own default tab; B is pointed at A's tab to share the page.
+    const sa = await a.call('browser_snapshot');
     expect(sa.isError, sa.text).toBeFalsy();
+    const tabId = Number(/Tab (\d+)/.exec(sa.text)![1]);
+    const [, sb] = await Promise.all([a.call('browser_snapshot'), b.call('browser_snapshot', { tabId })]);
     expect(sb.isError, sb.text).toBeFalsy();
     expect(sb.text).toContain('Trang thử nghiệm');
     // B acts, A sees the effect.
-    const r = await b.call('browser_click', { ref: refOf(sb.text, 'Tăng', 'button') });
+    const r = await b.call('browser_click', { ref: refOf(sb.text, 'Tăng', 'button'), tabId });
     expect(r.text).toContain('Đếm: 2');
     expect((await a.call('browser_snapshot')).text).toContain('Đếm: 2');
   });
@@ -248,10 +251,9 @@ test.describe('local mode in Chromium', () => {
       cloud('browser_snapshot'),
       a.call('browser_snapshot'),
     ]);
-    for (const r of results) {
-      expect(r.isError, r.text).toBeFalsy();
-      expect(r.text).toContain('Fixture Home');
-    }
+    for (const r of results) expect(r.isError, r.text).toBeFalsy();
+    // Tab listings show the fixture page; each client's own default tab is its own business.
+    for (const r of results.slice(0, 3)) expect(r.text).toContain('Fixture Home');
   });
 
   test('restarting the local server: a waiting client takes over and the extension reconnects', async () => {

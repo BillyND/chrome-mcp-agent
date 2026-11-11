@@ -48,8 +48,10 @@ async function reset(tabId: number) {
     send(tabId, 'Emulation.clearDeviceMetricsOverride'),
     send(tabId, 'Emulation.setTouchEmulationEnabled', { enabled: false }),
     send(tabId, 'Emulation.setUserAgentOverride', { userAgent: '' }),
-    send(tabId, 'Emulation.setEmulatedMedia', { features: [] }),
-    send(tabId, 'Emulation.setTimezoneOverride', { timezoneId: '' }),
+    // Chrome may keep a colour-scheme override after this; set "light" or "dark" explicitly to be sure.
+    send(tabId, 'Emulation.setEmulatedMedia', { media: '', features: [{ name: 'prefers-color-scheme', value: '' }] }),
+    // Chrome rejects an empty override when none was set.
+    active.get(tabId)?.has('timezone') ? send(tabId, 'Emulation.setTimezoneOverride', { timezoneId: '' }).catch(() => {}) : undefined,
     send(tabId, 'Network.emulateNetworkConditions', { offline: false, latency: 0, downloadThroughput: -1, uploadThroughput: -1 }),
   ]);
   active.delete(tabId);
@@ -94,7 +96,7 @@ export const emulationTools = {
     }
     if (args.colorScheme) {
       const scheme = String(args.colorScheme);
-      await send(tabId, 'Emulation.setEmulatedMedia', { features: scheme === 'none' ? [] : [{ name: 'prefers-color-scheme', value: scheme }] });
+      await send(tabId, 'Emulation.setEmulatedMedia', { media: '', features: [{ name: 'prefers-color-scheme', value: scheme === 'none' ? '' : scheme }] });
       scheme === 'none' ? state.delete('colorScheme') : state.set('colorScheme', scheme);
     }
     if (args.timezone) {

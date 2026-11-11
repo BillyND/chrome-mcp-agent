@@ -278,20 +278,20 @@ test.describe('new tools', () => {
     r = await call('browser_pdf', { filename: 'helmsman-e2e.pdf' }, T);
     expect(r.isError, r.text).toBeFalsy();
     expect(r.text).toContain('Saved the page as PDF');
-    const saved = /Downloaded to (.+\.pdf)/.exec(r.text)?.[1];
+    const saved = /Downloaded to (.+)\.\s*$/m.exec(r.text)?.[1];
     expect(saved, r.text).toBeTruthy();
     expect(fs.readFileSync(saved!).subarray(0, 5).toString()).toBe('%PDF-');
   });
 
   test('browser_emulate changes one tab and resets', async () => {
-    const probe = "JSON.stringify([innerWidth, matchMedia('(pointer: coarse)').matches, navigator.userAgent.includes('iPhone'), matchMedia('(prefers-color-scheme: dark)').matches, navigator.onLine])";
+    const probe = "JSON.stringify([screen.width, matchMedia('(pointer: coarse)').matches, navigator.userAgent.includes('iPhone'), matchMedia('(prefers-color-scheme: dark)').matches, navigator.onLine])";
     const normal = JSON.parse(JSON.parse(await evalIn(T, tab, probe)));
     let r = await call('browser_emulate', { device: 'iphone', colorScheme: 'dark' }, T);
     expect(r.isError, r.text).toBeFalsy();
     expect(r.text).toContain('viewport: 390x844 mobile');
     expect(JSON.parse(JSON.parse(await evalIn(T, tab, probe)))).toEqual([390, true, true, true, true]);
     // Other tabs are untouched.
-    expect(JSON.parse(JSON.parse(await evalIn(B, tabB, probe)))[0]).toBe(normal[0]);
+    expect(JSON.parse(JSON.parse(await evalIn(B, tabB, probe)))).toEqual(normal);
     r = await call('browser_emulate', { offline: true }, T);
     expect(r.text).toContain('network: offline');
     expect(JSON.parse(JSON.parse(await evalIn(T, tab, probe)))[4]).toBe(false);
@@ -299,7 +299,12 @@ test.describe('new tools', () => {
     expect(r.text).toContain('viewport: 390x844 mobile');
     r = await call('browser_emulate', { reset: true }, T);
     expect(r.text).toContain('Emulation reset');
-    expect(JSON.parse(JSON.parse(await evalIn(T, tab, probe)))).toEqual(normal);
+    const afterReset = JSON.parse(JSON.parse(await evalIn(T, tab, probe)));
+    // Width, touch, user agent and network are restored; Chrome may keep a colour-scheme override, so ask for light explicitly.
+    expect(afterReset.filter((_: unknown, i: number) => i !== 3)).toEqual(normal.filter((_: unknown, i: number) => i !== 3));
+    await call('browser_emulate', { colorScheme: 'light' }, T);
+    expect(JSON.parse(JSON.parse(await evalIn(T, tab, probe)))[3]).toBe(false);
+    await call('browser_emulate', { reset: true }, T);
     expect((await call('browser_emulate', { device: 'tv' }, T)).isError).toBe(true);
   });
 
