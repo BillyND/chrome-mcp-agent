@@ -5,11 +5,11 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "observability": { "enabled": true },
-  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "REPLACE_WITH_KV_ID" }],
+  "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "be0a5bc5312047f1a957afa9f3bc9fd6" }],
   "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "DeviceHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceHub"] }],
   "vars": {
-    "PUBLIC_URL": "https://chrome-mcp-agent.REPLACE.workers.dev",
+    "PUBLIC_URL": "https://chrome-mcp-agent.chrome-mcp-agent.workers.dev",
     "ALLOWED_EMAILS": "",
     "EXTENSION_IDS": ""
   }
