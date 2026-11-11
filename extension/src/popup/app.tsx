@@ -123,7 +123,7 @@ function App() {
     <div className="flex flex-col gap-3 p-3.5">
       <header className="flex items-center gap-2">
         <div className="grid size-6.5 place-items-center rounded-md bg-primary text-primary-foreground [&_svg]:size-4">{Icon.logo}</div>
-        <b className="flex-1 text-sm font-semibold">Chrome MCP Agent</b>
+        <b className="flex-1 text-[15px] font-semibold">Helmsman</b>
         <Badge id="status">
           <i className={cn('size-1.5 rounded-full', DOT[statusKey])} />
           <span id="status-text">{statusText}</span>
@@ -134,7 +134,7 @@ function App() {
         <section id="signed-out" className="flex flex-col gap-2.5">
           <p className="text-muted-foreground">{tr('tagline')}</p>
           {s.needsPassword && (
-            <label className="flex flex-col gap-1.5 text-xs font-medium">
+            <label className="flex flex-col gap-1.5 text-[13px] font-medium">
               {tr('password')}
               <Input
                 id="password"
@@ -149,14 +149,14 @@ function App() {
           <Button id="login" className="w-full" disabled={busy} onClick={() => void send({ type: 'connect', password })}>
             {busy ? tr('connecting') : tr('connect')}
           </Button>
-          {error && <p className="text-xs text-destructive">{error}</p>}
+          {error && <p className="text-[13px] text-destructive">{error}</p>}
         </section>
       ) : (
         <section id="signed-in" className="flex flex-col gap-2.5">
           <Card>
-            <div className="mb-1 text-xs font-medium text-muted-foreground">{tr('code')}</div>
+            <div className="mb-1 text-[13px] font-medium text-muted-foreground">{tr('code')}</div>
             <div className="flex items-center justify-between gap-2">
-              <code id="code" className="font-mono text-lg font-semibold tracking-wider">
+              <code id="code" className="font-mono text-xl font-semibold tracking-wider">
                 {s.code}
               </code>
               <CopyButton value={s.code!} label={tr('copy')} />
@@ -164,21 +164,21 @@ function App() {
           </Card>
 
           <Card>
-            <div className="mb-1 flex items-center justify-between text-xs font-medium text-muted-foreground">
+            <div className="mb-1 flex items-center justify-between text-[13px] font-medium text-muted-foreground">
               {tr('mcpUrl')}
               <a className="underline-offset-4 hover:text-foreground hover:underline" href={s.gateway} target="_blank" rel="noreferrer">
                 {tr('howTo')}
               </a>
             </div>
             <div className="flex items-center justify-between gap-2">
-              <span id="mcp-url" className="min-w-0 truncate font-mono text-xs" title={mcpUrl}>
+              <span id="mcp-url" className="min-w-0 truncate font-mono text-[13px]" title={mcpUrl}>
                 {mcpUrl}
               </span>
               <CopyButton value={mcpUrl} label={tr('copy')} />
             </div>
           </Card>
 
-          {error && s.status !== 'connected' && <p className="text-xs text-destructive">{error}</p>}
+          {error && s.status !== 'connected' && <p className="text-[13px] text-destructive">{error}</p>}
           {s.status === 'replaced' && (
             <Button id="use-here" className="w-full" onClick={() => void send({ type: 'reconnect' })}>
               {tr('useHere')}
@@ -192,11 +192,11 @@ function App() {
             <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
           </Card>
 
-          <div className="mt-0.5 text-xs font-medium text-muted-foreground">{tr('activity')}</div>
+          <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{tr('activity')}</div>
           <ul id="log" className="divide-y rounded-lg border">
-            {s.log.length === 0 && <li className="px-2.5 py-2 text-center text-xs text-muted-foreground">{tr('noActivity')}</li>}
+            {s.log.length === 0 && <li className="px-2.5 py-2 text-center text-[13px] text-muted-foreground">{tr('noActivity')}</li>}
             {s.log.slice(0, 5).map((e) => (
-              <li key={`${e.t}-${e.tool}`} className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+              <li key={`${e.t}-${e.tool}`} className="flex items-center gap-2 px-2.5 py-1.5 text-[13px]">
                 <i className={cn('size-1.5 shrink-0 rounded-full', e.ok ? 'bg-success' : 'bg-destructive')} />
                 <span className="min-w-0 flex-1 truncate" title={e.summary}>
                   {e.summary}

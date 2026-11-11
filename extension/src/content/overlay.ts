@@ -45,7 +45,7 @@ let currentLabelKey: 'bar_working' | 'bar_paused' = 'bar_working';
 
 function ensure() {
   if (parts && host?.isConnected) return parts;
-  host = document.createElement('chrome-mcp-agent-overlay');
+  host = document.createElement('helmsman-overlay');
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor">${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div></div>`;
   const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;

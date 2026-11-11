@@ -1,10 +1,12 @@
-// Two origins for the e2e suite: http://localhost:4100 (page) and
-// http://127.0.0.1:4101 (cross-origin iframe), each serving the same pages.
+// Two origins for the e2e suite: http://localhost:<port> (page) and
+// http://127.0.0.1:<port+1> (cross-origin iframe), each serving the same pages.
 
 import http from 'node:http';
 
-const SITE_A = 'http://localhost:4100';
-const SITE_B = 'http://127.0.0.1:4101';
+const PORT_A = Number(process.env.E2E_FIXTURE_PORT ?? 4100);
+const PORT_B = PORT_A + 1;
+export const SITE_A = `http://localhost:${PORT_A}`;
+export const SITE_B = `http://127.0.0.1:${PORT_B}`;
 
 const pages = {
   '/index.html': `<!doctype html><html><head><meta charset="utf-8"><title>Fixture Home</title>
@@ -96,7 +98,7 @@ function serve(port, host) {
 }
 
 export async function startFixtures() {
-  const a = await serve(4100, 'localhost');
-  const b = await serve(4101, '127.0.0.1');
+  const a = await serve(PORT_A, 'localhost');
+  const b = await serve(PORT_B, '127.0.0.1');
   return { url: `${SITE_A}/index.html`, close: () => Promise.all([a, b].map((s) => new Promise((r) => s.close(r)))) };
 }

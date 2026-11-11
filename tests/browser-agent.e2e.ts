@@ -6,9 +6,9 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startFixtures } from './fixtures/server.mjs';
+import { SITE_A, SITE_B, startFixtures } from './fixtures/server.mjs';
 
-const GATEWAY = 'http://localhost:8787';
+const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 const DEVICE = 'e2e-device';
 const EXT = path.resolve('extension/unpacked');
 
@@ -108,7 +108,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(r.isError).toBeFalsy();
   expect(r.text).toContain('Đếm: 1');
   await ctx.pages()[0].screenshot({ path: 'test-results/overlay.png' });
-  expect(await ctx.pages()[0].locator('chrome-mcp-agent-overlay').count()).toBe(1);
+  expect(await ctx.pages()[0].locator('helmsman-overlay').count()).toBe(1);
 
   // Type Vietnamese text
   r = await call('browser_type', { element: 'Họ tên', ref: refOf(snap, 'Họ tên', 'textbox'), text: 'Nguyễn Văn Á' });
@@ -177,7 +177,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   r = await call('browser_evaluate', { script: 'document.title' });
   expect(r.text).toContain('"Fixture Home"');
   r = await call('browser_evaluate', { script: 'return element.value + " @ " + location.origin', ref: emailRef });
-  expect(r.text).toContain('ban@vidu.vn @ http://127.0.0.1:4101');
+  expect(r.text).toContain(`ban@vidu.vn @ ${SITE_B}`);
 
   // Scroll and wait
   r = await call('browser_scroll', { direction: 'down', amount: 1500 });
@@ -192,7 +192,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(fullShot.content.some((c) => c.type === 'image')).toBe(true);
 
   // Navigation, then network capture of that navigation
-  r = await call('browser_navigate', { url: 'http://127.0.0.1:4101/cross.html' });
+  r = await call('browser_navigate', { url: `${SITE_B}/cross.html` });
   expect(r.text).toContain('Form trong iframe');
   r = await call('browser_network_requests', { filter: 'nested.html' });
   expect(r.text).toContain('nested.html');
@@ -206,7 +206,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
 });
 
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
-  await call('browser_navigate', { url: 'http://localhost:4100/sheet-host.html' });
+  await call('browser_navigate', { url: `${SITE_A}/sheet-host.html` });
   let snap = (await call('browser_snapshot')).text;
   const grid = refOf(snap, 'size=600x264', 'canvas');
   expect(grid).toMatch(/^f\d+e\d+$/); // inside the cross-origin iframe

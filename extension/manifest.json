@@ -1,23 +1,47 @@
 {
   "manifest_version": 3,
-  "name": "Chrome MCP Agent",
-  "short_name": "MCP Agent",
+  "name": "Helmsman – AI browser agent",
+  "short_name": "Helmsman",
   "version": "1.0.0",
-  "description": "Cho ChatGPT điều khiển Chrome của bạn: đọc trang, bấm, gõ, điền form, cả bên trong iframe.",
+  "description": "Let ChatGPT, Claude and other AI agents drive your browser: read pages, click, type and fill forms, even inside iframes and canvas apps.",
   "minimum_chrome_version": "125",
-  "icons": { "16": "icons/16.png", "32": "icons/32.png", "48": "icons/48.png", "128": "icons/128.png" },
-  "action": {
-    "default_title": "Chrome MCP Agent",
-    "default_popup": "popup.html",
-    "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
+  "icons": {
+    "16": "icons/16.png",
+    "32": "icons/32.png",
+    "48": "icons/48.png",
+    "128": "icons/128.png"
   },
-  "background": { "service_worker": "background.js" },
-  "permissions": ["debugger", "tabs", "scripting", "storage", "alarms", "downloads", "webNavigation"],
-  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_title": "Helmsman",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/16.png",
+      "32": "icons/32.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "permissions": [
+    "debugger",
+    "tabs",
+    "scripting",
+    "storage",
+    "alarms",
+    "downloads",
+    "webNavigation"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
   "content_scripts": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["content.js"],
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "content.js"
+      ],
       "all_frames": true,
       "match_about_blank": true,
       "match_origin_as_fallback": true,

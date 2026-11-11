@@ -10,8 +10,8 @@ const bi = (vi: string, en: string) => `<span data-l="vi">${vi}</span><span data
 
 // Known server messages (Vietnamese) and their English counterpart.
 const EN: Record<string, string> = {
-  'Mã kết nối không đúng. Mở extension Chrome MCP Agent để xem lại mã của bạn.':
-    'Wrong connection code. Open the Chrome MCP Agent extension to see your code again.',
+  'Mã kết nối không đúng. Mở extension Helmsman để xem lại mã của bạn.':
+    'Wrong connection code. Open the Helmsman extension to see your code again.',
   'Thử quá nhiều lần': 'Too many attempts',
   'Bạn đã nhập sai mã quá nhiều lần. Đợi 10 phút rồi thử lại.': 'Too many wrong codes. Wait 10 minutes and try again.',
   'Không thể tiếp tục': 'Cannot continue',
@@ -85,7 +85,7 @@ else if(b.dataset.copy){var el=document.getElementById(b.dataset.copy);navigator
 function layout(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${escapeHtml(title)}</title><style>${CSS}</style><script>${SCRIPT}</script></head><body><main>
-<header><div class="brand"><span class="logo">${LOGO}</span>Chrome MCP Agent</div>
+<header><div class="brand"><span class="logo">${LOGO}</span>Helmsman</div>
 <div class="tools"><div class="seg" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="false">EN</button><button type="button" data-lang="vi" aria-pressed="false">VI</button></div>
 <div class="seg" role="group" aria-label="Theme"><button type="button" data-theme="light" aria-label="Light" aria-pressed="true">${SUN}</button><button type="button" data-theme="dark" aria-label="Dark" aria-pressed="false">${MOON}</button><button type="button" data-theme="system" aria-label="System" aria-pressed="false">${AUTO}</button></div></div></header>
 ${body}
@@ -95,8 +95,8 @@ ${body}
 export function landingPage(publicUrl: string): string {
   const mcpUrl = `${publicUrl}/mcp`;
   return layout(
-    'Chrome MCP Agent',
-    `<section class="hero"><h1>Chrome MCP Agent</h1>
+    'Helmsman',
+    `<section class="hero"><h1>Helmsman</h1>
 <p class="muted">${bi('Cho ChatGPT dùng Chrome của bạn.', 'Let ChatGPT use your Chrome.')}</p>
 <a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a></section>
 <div class="card"><ol class="steps">
@@ -133,7 +133,7 @@ export function consentPage(v: ConsentView): string {
     ? bi(`Ứng dụng của <b>${domain}</b>.`, `An app from <b>${domain}</b>.`)
     : bi('Ứng dụng tự đăng ký, chưa được xác minh.', 'Self-registered app, not verified.');
   return layout(
-    'Chrome MCP Agent',
+    'Helmsman',
     `<div class="card"><h2>${bi(`Cho phép <b>${name}</b> điều khiển Chrome của bạn?`, `Allow <b>${name}</b> to control your Chrome?`)}</h2>
 <p class="muted" style="margin:0">${origin} ${bi('Quyền truy cập sẽ gửi tới', 'Access will be sent to')} <b>${escapeHtml(v.redirectHost)}</b>.</p>
 ${v.redirectIsLoopback ? `<p class="notice">${bi('Quyền sẽ gửi tới một ứng dụng trên máy này. Chỉ tiếp tục nếu bạn vừa bấm kết nối từ ứng dụng đó.', 'Access goes to an app on this computer. Continue only if you just started the connection from that app.')}</p>` : ''}

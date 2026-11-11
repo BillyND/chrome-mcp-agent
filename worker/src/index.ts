@@ -79,7 +79,7 @@ async function authorize(request: Request, env: Env): Promise<Response> {
       redirectIsLoopback: form.get('redirect_loopback') === '1',
       clientDomain: String(form.get('client_domain') ?? '') || undefined,
       handle,
-      error: 'Mã kết nối không đúng. Mở extension Chrome MCP Agent để xem lại mã của bạn.',
+      error: 'Mã kết nối không đúng. Mở extension Helmsman để xem lại mã của bạn.',
     };
     return html(consentPage(view), undefined, 400);
   }
@@ -147,7 +147,7 @@ const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const device = (ctx.props as AuthProps | undefined)?.device;
     if (!device || !(await isActiveDevice(env, device))) {
-      return new Response('This Chrome was disconnected. Reconnect Chrome MCP Agent in ChatGPT.', { status: 401 });
+      return new Response('This Chrome was disconnected. Reconnect Helmsman in ChatGPT.', { status: 401 });
     }
     return handleMcp(request, env, device);
   },

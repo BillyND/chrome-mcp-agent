@@ -1,4 +1,4 @@
-# Chrome MCP Agent
+# Helmsman
 
 Cho ChatGPT (kể cả gói Free) điều khiển Chrome thật của bạn: đọc trang, bấm, gõ tiếng Việt, điền form, kéo thả, tải file lên, chụp màn hình. Làm được cả bên trong iframe khác domain, iframe lồng nhau và shadow DOM. Khi AI làm việc, trên trang hiện con trỏ và thanh có nút **Dừng**.
 
@@ -25,7 +25,7 @@ ChatGPT ──MCP + OAuth──► Cloudflare Worker (/mcp) ──► Durable Ob
 Ghi chú:
 - Không cần tài khoản Google hay đăng nhập gì cả. Mỗi mã kết nối chỉ điều khiển được đúng một Chrome. Đừng chia sẻ mã cho người khác.
 - Bấm **Ngắt kết nối Chrome này** trong extension sẽ huỷ mã. Mọi ChatGPT đã kết nối bằng mã đó lập tức mất quyền.
-- Dải vàng *"Chrome MCP Agent đang gỡ lỗi trình duyệt này"* là bình thường, tự ẩn sau 3 phút không dùng.
+- Dải vàng *"Helmsman đang gỡ lỗi trình duyệt này"* là bình thường, tự ẩn sau 3 phút không dùng.
 - Công tắc **Cho phép AI điều khiển** trong extension là nút dừng duy nhất: tắt thì AI dừng ngay (vẫn giữ kết nối), bật lại là tiếp tục. Nút **Dừng** / **Tiếp tục** trên thanh ở trang cũng bật tắt công tắc này, và trạng thái được nhớ kể cả khi Chrome khởi động lại extension.
 - Extension và các trang web có nút chọn ngôn ngữ (EN/VI) và giao diện (sáng/tối/theo hệ thống). Mặc định là sáng, ngôn ngữ theo trình duyệt.
 - AI vẽ và bấm được trên canvas (ví dụ Google Sheets, bảng vẽ) bằng `browser_mouse_xy`, và gõ thẳng vào ô đang chọn mà không cần chỉ định phần tử (`browser_type` không cần ref).

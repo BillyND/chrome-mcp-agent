@@ -5,7 +5,12 @@ export type ToolContent =
   | { type: 'image'; data: string; mimeType: string };
 
 export type HubToExtension =
-  | { type: 'call'; id: string; tool: string; args: Record<string, unknown> }
+  /**
+   * `agent` identifies the calling AI client (an OAuth client id for the cloud gateway,
+   * `local:<name>` for the local server). Each agent gets its own default tab, and calls
+   * from different agents on different tabs run in parallel.
+   */
+  | { type: 'call'; id: string; tool: string; args: Record<string, unknown>; agent?: string }
   | { type: 'hello' };
 
 export type ExtensionToHub =

@@ -25,7 +25,7 @@ function gatewayFromWrangler() {
   return m?.[1];
 }
 
-const gateway = (argv.includes('--dev') ? 'http://localhost:8787' : flag('--gateway') ?? gatewayFromWrangler() ?? '').replace(/\/$/, '');
+const gateway = (argv.includes('--dev') ? `http://localhost:${process.env.E2E_PORT ?? 8787}` : flag('--gateway') ?? gatewayFromWrangler() ?? '').replace(/\/$/, '');
 if (!/^https?:\/\//.test(gateway) || gateway.includes('REPLACE')) {
   console.error(`Gateway URL is not set (got "${gateway}"). Deploy the worker first or pass --gateway https://...`);
   process.exit(1);

@@ -109,7 +109,7 @@ export class DeviceHub extends DurableObject<Env> {
     const ws = await this.waitForSocket(CONNECT_GRACE_MS);
     if (!ws) {
       return errorResult(
-        'Chrome is not connected. Ask the user to open Chrome and check that the Chrome MCP Agent extension shows "Connected" (click its icon and sign in if needed).',
+        'Chrome is not connected. Ask the user to open Chrome and check that the Helmsman extension shows "Connected" (click its icon and sign in if needed).',
       );
     }
     const id = crypto.randomUUID();
