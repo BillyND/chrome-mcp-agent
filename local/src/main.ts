@@ -4,6 +4,7 @@
 import { StdioServerTransport } from '@modelcontextprotocol/server/stdio';
 import { toolsServerFactory } from '../../shared/mcp-tools-server';
 import { DEFAULT_LOCAL_PORT } from '../../shared/protocol';
+import { parseProfile } from '../../shared/tools';
 import { startBridge } from './bridge';
 
 const port = Number(process.env.HELMSMAN_PORT) || DEFAULT_LOCAL_PORT;
@@ -16,8 +17,11 @@ if (process.stdin.isTTY) {
 
 const bridge = startBridge({ port, extensionId: process.env.HELMSMAN_EXTENSION_ID, log });
 
-const server = toolsServerFactory()((tool, args, timeoutMs, safeToRepeat) =>
-  bridge.call(tool, args, timeoutMs, safeToRepeat, `local:${server.server.getClientVersion()?.name ?? 'local'}`),
+// HELMSMAN_PROFILE=core advertises only the most-used tools (smaller tool list); anything else means full.
+const server = toolsServerFactory()(
+  (tool, args, timeoutMs, safeToRepeat) =>
+    bridge.call(tool, args, timeoutMs, safeToRepeat, `local:${server.server.getClientVersion()?.name ?? 'local'}`),
+  parseProfile(process.env.HELMSMAN_PROFILE),
 );
 
 const shutdown = () => {

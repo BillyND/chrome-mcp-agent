@@ -1,5 +1,6 @@
 // Keyboard tools: type text (into a field or the focused element) and press shortcuts.
 
+import { resolveSecrets } from '../secrets/tools';
 import { fillTarget, pressKey, typeText } from './input';
 import { locate } from './locate';
 import { afterAction } from './page-summary';
@@ -11,12 +12,13 @@ const preview = (value: unknown) => JSON.stringify(String(value ?? '').slice(0, 
 
 export const keyboardTools = {
   browser_type: tabTool(async (args, ctx) => {
-    const value = String(args.text ?? '');
+    const value = String(args.text ?? ''); // what results may show: {{secret:NAME}} stays a placeholder
+    const typed = await resolveSecrets(value);
     const submitted = args.submit ? ' and pressed Enter' : '';
     if (!args.ref) {
       // Canvas apps (Google Sheets, Docs, Figma) take keys on a hidden focused element.
       const tab = await prepareTab(ctx, 'Gõ phím');
-      await typeText(tab.id!, value, !!args.slowly, ctx);
+      await typeText(tab.id!, typed, !!args.slowly, ctx);
       if (args.submit) await pressKey(tab.id!, 'Enter');
       await sleep(200);
       return afterAction(tab, `Typed ${preview(value)} into the focused element${submitted}.`);
@@ -25,7 +27,7 @@ export const keyboardTools = {
     const t = await locate(tab.id!, args.ref);
     await glide(tab.id!, t.x, t.y);
     checkAbort(ctx);
-    await fillTarget(tab.id!, t, value, ctx, { clear: args.clear !== false, slowly: !!args.slowly, strict: true });
+    await fillTarget(tab.id!, t, typed, ctx, { clear: args.clear !== false, slowly: !!args.slowly, strict: true });
     if (args.submit) await pressKey(tab.id!, 'Enter');
     await sleep(150);
     return afterAction(tab, `Typed ${preview(value)} into ${t.prep.label}${submitted}.`);

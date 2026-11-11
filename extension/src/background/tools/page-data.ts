@@ -6,8 +6,6 @@ import { pageHeader, prepareTab, tabTag } from './tab';
 import { tabTool, text, ToolError } from './types';
 import type { FindHit } from '../../content/page-data';
 
-const truncate = (s: string, max: number, note = `… (truncated at ${max} characters)`) => (s.length > max ? `${s.slice(0, max)}\n${note}` : s);
-
 async function evaluateInFrame(tabId: number, frameId: number, script: string, markNonce?: string): Promise<unknown> {
   const hasReturn = /(^|[;\s{])return[\s;(]/.test(script);
   const finder = markNonce
@@ -51,7 +49,6 @@ export async function evaluate(tabId: number, script: string, ref?: string): Pro
 export const pageDataTools = {
   browser_get_text: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Đọc nội dung');
-    const max = Number(args.maxChars ?? 40_000);
     let out: string;
     if (args.ref) {
       const { frameId, local } = parseRef(args.ref);
@@ -63,14 +60,14 @@ export const pageDataTools = {
         .map(({ frame, value }) => (frame.frameId === 0 ? value : `\n--- frame f${frame.frameId} (${frame.url}) ---\n${value}`))
         .join('\n');
     }
-    return text(`${await pageHeader(tab)}\n\n${truncate(out, max) || '(no text)'}`);
+    return text(`${await pageHeader(tab)}\n\n${out || '(no text)'}`);
   }),
 
   browser_evaluate: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Chạy script');
     const value = await evaluate(tab.id!, String(args.script), args.ref);
     const json = value === undefined ? 'undefined' : JSON.stringify(value, null, 2);
-    return text(`${tabTag(tab.id!)} result:\n${truncate(json, 30_000, '… (truncated)')}`);
+    return text(`${tabTag(tab.id!)} result:\n${json}`);
   }),
 
   browser_find: tabTool(async (args, ctx) => {
@@ -106,6 +103,6 @@ export const pageDataTools = {
       }
     }
     const json = JSON.stringify(merged, null, 1);
-    return text(`${await pageHeader(tab)}\n\nExtracted (${what.join(', ')}):\n${truncate(json, Number(args.maxChars ?? 40_000))}`);
+    return text(`${await pageHeader(tab)}\n\nExtracted (${what.join(', ')}):\n${json}`);
   }),
 };

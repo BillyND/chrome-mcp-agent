@@ -1,6 +1,7 @@
 // Form tools: fill many fields at once, choose <select> options.
 
 import { frameCall } from '../frames';
+import { resolveSecrets } from '../secrets/tools';
 import { clickTarget, fillTarget } from './input';
 import { locate } from './locate';
 import { afterAction } from './page-summary';
@@ -27,8 +28,8 @@ export const formTools = {
         if (t.prep.checked !== want) await clickTarget(tabId, t);
         done.push(`${t.prep.label} → ${want ? 'checked' : 'unchecked'}`);
       } else {
-        const str = Array.isArray(value) ? value.join(', ') : String(value);
-        await fillTarget(tabId, t, str, ctx);
+        const str = Array.isArray(value) ? value.join(', ') : String(value); // what results may show: {{secret:NAME}} stays a placeholder
+        await fillTarget(tabId, t, await resolveSecrets(str), ctx);
         done.push(`${t.prep.label} = ${JSON.stringify(str.slice(0, 60))}`);
       }
       await sleep(60);

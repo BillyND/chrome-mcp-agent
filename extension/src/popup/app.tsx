@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getPrefs, isDark, setPrefs, t, type Key, type Prefs } from '../i18n';
 import type { PopupState, RuntimeMessage } from '../messages';
+import { SecretsSection } from './secrets-section';
 import { Badge, Button, Card, Input, Switch, ToggleGroup, ToggleGroupItem } from './ui/components';
 import { cn } from './ui/utils';
 
@@ -237,6 +238,8 @@ function App() {
           <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
         </Card>
       )}
+
+      <SecretsSection lang={prefs.lang} />
 
       {active && (
         <>

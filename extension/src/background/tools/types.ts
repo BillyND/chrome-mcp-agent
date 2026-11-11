@@ -21,6 +21,8 @@ export type ToolFn = (args: Args, ctx: ToolCtx) => Promise<ToolContent[]>;
 export interface ToolSpec {
   run: ToolFn;
   scope: 'tab' | 'free';
+  /** Free tools queue per agent in this lane instead of the default one (a tool that calls other tools must not wait behind itself). */
+  lane?: string;
 }
 
 export const tabTool = (run: ToolFn): ToolSpec => ({ run, scope: 'tab' });

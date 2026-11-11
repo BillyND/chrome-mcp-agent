@@ -2,6 +2,9 @@
 // (executes it). Keep names and arguments close to Playwright MCP so models that
 // already know that toolset use this one without extra prompting.
 
+/** Largest text block any tool returns; longer output is cut and the rest is paged with browser_read_more. */
+export const MAX_OUTPUT_CHARS = 40_000;
+
 export interface ToolDef {
   name: string;
   title: string;
@@ -68,13 +71,33 @@ export const TOOLS: ToolDef[] = [
     name: 'browser_snapshot',
     title: 'Page snapshot',
     description:
-      'Read the page as an accessibility tree with element refs, including the content of every iframe (same-origin and cross-origin). Use refs from the latest snapshot for every other action. Prefer this over screenshots.',
+      'Read the page as an accessibility tree with element refs, including the content of every iframe (same-origin and cross-origin). Use refs from the latest snapshot for every other action. Prefer this over screenshots. To save tokens: mode "diff" returns only what changed since your last snapshot of this tab; ref reads just one subtree; interactiveOnly lists only actionable elements and headings; depth limits nesting. Output over maxChars is cut and can be paged with browser_read_more.',
     inputSchema: obj({
       tabId,
-      maxChars: { type: 'integer', description: 'Truncate the snapshot after this many characters (default 60000).' },
+      mode: { type: 'string', enum: ['full', 'diff'], default: 'full', description: '"diff": only lines added (+), removed (-) or changed (~) since your previous snapshot of this tab (falls back to full when there is none or the diff is not smaller).' },
+      ref: { ...ref, description: 'Only snapshot this element and what it contains (works inside iframes).' },
+      depth: { type: 'integer', minimum: 0, description: 'Show at most this many nesting levels below the root (0 = only the root level).' },
+      interactiveOnly: { type: 'boolean', default: false, description: 'Only actionable elements (buttons, links, fields...) and headings.' },
+      maxChars: { type: 'integer', description: `Cut the snapshot after this many characters (default and maximum ${MAX_OUTPUT_CHARS}); the rest stays available through browser_read_more.` },
     }),
     readOnly: true,
     timeoutMs: 30_000,
+  },
+  {
+    name: 'browser_read_more',
+    title: 'Read more',
+    description:
+      'Continue reading a truncated tool result: pass the handle and offset printed in its "truncated" note. Returns the next chunk of the full text.',
+    inputSchema: obj(
+      {
+        handle: { type: 'string', description: 'Handle from the truncation note, e.g. "h3".' },
+        offset: { type: 'integer', minimum: 0, default: 0, description: 'Character offset to continue from (as printed in the note).' },
+        maxChars: { type: 'integer', description: `Chunk size (default and maximum ${MAX_OUTPUT_CHARS}).` },
+      },
+      ['handle'],
+    ),
+    readOnly: true,
+    timeoutMs: 15_000,
   },
   {
     name: 'browser_click',
@@ -494,6 +517,66 @@ export const TOOLS: ToolDef[] = [
     readOnly: false,
     timeoutMs: 20_000,
   },
+  {
+    name: 'browser_secrets_list',
+    title: 'Secret names',
+    description:
+      'Names of the secrets the user saved in the Helmsman popup (never their values). Use one in browser_type or browser_fill_form as {{secret:NAME}}; the extension types the real value and hides it from every result.',
+    inputSchema: obj({}),
+    readOnly: true,
+    timeoutMs: 10_000,
+  },
+  {
+    name: 'browser_workflow',
+    title: 'Saved workflows',
+    description:
+      'Record and replay routines. start_recording {name}: from now on your successful actions are saved (elements are stored as role+name locators, so replays survive new refs). stop_recording: save it; pass params {"city":"Hà Nội"} to turn the literal values you used into parameters. run {name, params?}: replay step by step with fresh element lookups, stopping at the first failing step. list: saved workflows as JSON (add name for its steps). delete {name}.',
+    inputSchema: obj(
+      {
+        action: { type: 'string', enum: ['start_recording', 'stop_recording', 'list', 'run', 'delete'] },
+        name: { type: 'string', description: 'Workflow name (letters, digits, space, - and _).' },
+        description: { type: 'string', description: 'start_recording: what the routine does.' },
+        params: {
+          type: 'object',
+          additionalProperties: { type: ['string', 'number', 'boolean'] },
+          description: 'stop_recording: parameter name -> the literal value used while recording. run: parameter name -> value for this run ({{param:name}} in steps).',
+        },
+      },
+      ['action'],
+    ),
+    readOnly: false,
+    timeoutMs: 300_000,
+  },
 ];
 
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
+
+// ---- profiles ---------------------------------------------------------------
+
+export type ToolProfile = 'core' | 'full';
+
+/** The tools most tasks need; the "core" profile advertises only these (smaller tool list, fewer tokens). */
+export const CORE_TOOL_NAMES: readonly string[] = [
+  'browser_tabs',
+  'browser_navigate',
+  'browser_snapshot',
+  'browser_read_more',
+  'browser_click',
+  'browser_type',
+  'browser_fill_form',
+  'browser_press_key',
+  'browser_scroll',
+  'browser_screenshot',
+  'browser_find',
+  'browser_wait_for',
+  'browser_secrets_list',
+];
+
+/** Unknown or missing values mean "full". */
+export function parseProfile(value: string | null | undefined): ToolProfile {
+  return value?.trim().toLowerCase() === 'core' ? 'core' : 'full';
+}
+
+export function toolsForProfile(profile: ToolProfile): ToolDef[] {
+  return profile === 'core' ? TOOLS.filter((t) => CORE_TOOL_NAMES.includes(t.name)) : TOOLS;
+}
