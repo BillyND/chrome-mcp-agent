@@ -6,39 +6,16 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startFixtures } from './fixtures/server.mjs';
+import { cloudCall, refOf } from './fixtures/helpers';
+import { FIXTURE_PORT, startFixtures } from './fixtures/server.mjs';
 
-const GATEWAY = 'http://localhost:8787';
+const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 const DEVICE = 'e2e-device';
 const EXT = path.resolve('extension/unpacked');
 
 let ctx: BrowserContext;
 let fixtures: { url: string; close: () => Promise<unknown> };
-let rpcId = 0;
-
-interface ToolResult {
-  content: Array<{ type: string; text?: string; data?: string }>;
-  isError?: boolean;
-}
-
-async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolResult & { text: string }> {
-  const res = await fetch(`${GATEWAY}/dev/mcp?device=${DEVICE}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      'mcp-protocol-version': '2025-06-18',
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } }),
-  });
-  const raw = await res.text();
-  const dataLine = raw.split('\n').find((l) => l.startsWith('data: ')) ?? raw;
-  const msg = JSON.parse(dataLine.replace(/^data: /, ''));
-  if (msg.error) throw new Error(`${name}: ${JSON.stringify(msg.error)}`);
-  const result = msg.result as ToolResult;
-  const text = result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
-  return { ...result, text };
-}
+const call = (name: string, args: Record<string, unknown> = {}) => cloudCall(GATEWAY, DEVICE, name, args);
 
 /** Width and height from a base64 JPEG's SOF marker. */
 function jpegSize(b64: string): { width: number; height: number } {
@@ -50,14 +27,6 @@ function jpegSize(b64: string): { width: number; height: number } {
     i += 2 + len;
   }
   throw new Error('not a JPEG');
-}
-
-/** Finds the ref of the first snapshot line containing `label` (and optionally a role). */
-function refOf(snapshot: string, label: string, role?: string): string {
-  const line = snapshot.split('\n').find((l) => l.includes(label) && /\[ref=/.test(l) && (!role || l.includes(`- ${role}`)));
-  const m = line && /ref=(f?\d*e\d+)/.exec(line);
-  if (!m) throw new Error(`No ref for ${role ?? ''} "${label}" in snapshot:\n${snapshot}`);
-  return m[1];
 }
 
 test.beforeAll(async () => {
@@ -177,7 +146,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   r = await call('browser_evaluate', { script: 'document.title' });
   expect(r.text).toContain('"Fixture Home"');
   r = await call('browser_evaluate', { script: 'return element.value + " @ " + location.origin', ref: emailRef });
-  expect(r.text).toContain('ban@vidu.vn @ http://127.0.0.1:4101');
+  expect(r.text).toContain(`ban@vidu.vn @ http://127.0.0.1:${FIXTURE_PORT + 1}`);
 
   // Scroll and wait
   r = await call('browser_scroll', { direction: 'down', amount: 1500 });
@@ -192,7 +161,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(fullShot.content.some((c) => c.type === 'image')).toBe(true);
 
   // Navigation, then network capture of that navigation
-  r = await call('browser_navigate', { url: 'http://127.0.0.1:4101/cross.html' });
+  r = await call('browser_navigate', { url: `http://127.0.0.1:${FIXTURE_PORT + 1}/cross.html` });
   expect(r.text).toContain('Form trong iframe');
   r = await call('browser_network_requests', { filter: 'nested.html' });
   expect(r.text).toContain('nested.html');
@@ -206,7 +175,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
 });
 
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
-  await call('browser_navigate', { url: 'http://localhost:4100/sheet-host.html' });
+  await call('browser_navigate', { url: `http://localhost:${FIXTURE_PORT}/sheet-host.html` });
   let snap = (await call('browser_snapshot')).text;
   const grid = refOf(snap, 'size=600x264', 'canvas');
   expect(grid).toMatch(/^f\d+e\d+$/); // inside the cross-origin iframe
