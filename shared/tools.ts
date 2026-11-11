@@ -23,7 +23,8 @@ const element = {
 };
 const tabId = {
   type: 'integer',
-  description: 'Tab to act on. Defaults to the agent tab (see browser_tabs).',
+  description:
+    'Tab to act on. Defaults to your own default tab (see browser_tabs). Calls on different tabs run in parallel; calls on the same tab run one after another.',
 };
 
 const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
@@ -38,12 +39,13 @@ export const TOOLS: ToolDef[] = [
     name: 'browser_tabs',
     title: 'Tabs',
     description:
-      'List, open, close or select tabs. "select" makes a tab the agent tab that other tools act on by default. Always start a task by listing tabs unless the user named a URL.',
+      'List, open, close or select tabs. Each AI agent has its own default tab and its own Chrome tab group, so several agents can work side by side. "new" opens a tab of your own (in the background); "select" makes an existing tab your default. Pass tabId to other tools to work in several tabs in parallel. Start a task by listing tabs unless the user named a URL.',
     inputSchema: obj(
       {
         action: { type: 'string', enum: ['list', 'new', 'close', 'select'] },
         tabId: { type: 'integer', description: 'Required for close and select.' },
         url: { type: 'string', description: 'URL to open with "new".' },
+        activate: { type: 'boolean', default: false, description: 'With "new" or "select": also bring the tab to the front of the browser (off by default so other agents and the user are not disturbed).' },
       },
       ['action'],
     ),
@@ -53,7 +55,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'browser_navigate',
     title: 'Navigate',
-    description: 'Open a URL in the agent tab (or go back, forward, reload) and wait for the page to load.',
+    description: 'Open a URL in the tab (or go back, forward, reload) and wait for the page to load.',
     inputSchema: obj({
       url: { type: 'string', description: 'URL to open. Omit when using action.' },
       action: { type: 'string', enum: ['goto', 'back', 'forward', 'reload'], default: 'goto' },
@@ -261,10 +263,14 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'browser_wait_for',
     title: 'Wait',
-    description: 'Wait for text to appear or disappear anywhere on the page (all frames), or for a number of seconds.',
+    description:
+      'Wait until text appears or disappears anywhere on the page (all frames), a CSS selector appears or disappears, and/or the network is idle (no requests in flight for 0.5s); or wait a number of seconds. Conditions combine: all must hold.',
     inputSchema: obj({
       text: { type: 'string' },
       textGone: { type: 'string' },
+      selector: { type: 'string', description: 'CSS selector that must match a visible element (open shadow roots and all frames are searched).' },
+      selectorGone: { type: 'string', description: 'CSS selector that must no longer match a visible element.' },
+      networkIdle: { type: 'boolean', default: false, description: 'Wait until no network request has been in flight for 0.5 seconds.' },
       time: { type: 'number', description: 'Seconds to wait (max 30).' },
       timeout: { type: 'number', description: 'Max seconds to wait for text (default 20, max 50).' },
       tabId,
@@ -322,7 +328,7 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'browser_console_messages',
     title: 'Console messages',
-    description: 'Console messages and uncaught errors of the agent tab since the agent attached to it.',
+    description: 'Console messages and uncaught errors of the tab since the agent attached to it.',
     inputSchema: obj({ tabId, onlyErrors: { type: 'boolean', default: false } }),
     readOnly: true,
     timeoutMs: 15_000,
@@ -330,10 +336,163 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'browser_network_requests',
     title: 'Network requests',
-    description: 'Network requests of the agent tab since the agent attached to it (method, URL, status, type).',
+    description: 'Network requests of the tab since the agent attached to it (method, URL, status, type).',
     inputSchema: obj({ tabId, filter: { type: 'string', description: 'Only URLs containing this text.' } }),
     readOnly: true,
     timeoutMs: 15_000,
+  },
+  {
+    name: 'browser_find',
+    title: 'Find text',
+    description:
+      'Find visible text on the page, including inside iframes and shadow DOM, and return a ref for each match (the nearest clickable element when there is one) with a snippet. Cheaper than a full snapshot when you know what you are looking for.',
+    inputSchema: obj(
+      {
+        text: { type: 'string', description: 'Text to look for (case-insensitive unless caseSensitive).' },
+        caseSensitive: { type: 'boolean', default: false },
+        maxResults: { type: 'integer', description: 'Default 20, max 100.' },
+        tabId,
+      },
+      ['text'],
+    ),
+    readOnly: true,
+    timeoutMs: 30_000,
+  },
+  {
+    name: 'browser_extract',
+    title: 'Extract structured data',
+    description:
+      'Return structured data from the page as JSON: links (text, href, ref), tables (headers and rows), headings, forms with their fields, and page metadata (title, description, canonical, Open Graph). All frames are included. Pass ref to limit it to one element.',
+    inputSchema: obj({
+      what: {
+        type: 'array',
+        items: { type: 'string', enum: ['links', 'tables', 'headings', 'forms', 'meta'] },
+        description: 'Which kinds of data to return. Default: all of them.',
+      },
+      ref: { ...ref, description: 'Only extract from inside this element.' },
+      maxItems: { type: 'integer', description: 'Max items per kind (default 100, max 500).' },
+      maxChars: { type: 'integer', description: 'Truncate the JSON after this many characters (default 40000).' },
+      tabId,
+    }),
+    readOnly: true,
+    timeoutMs: 30_000,
+  },
+  {
+    name: 'browser_pdf',
+    title: 'Save page as PDF',
+    description:
+      'Render the page to a PDF. By default it is saved to the Downloads folder and the path is returned; set returnBase64 to get the bytes inline instead (small documents only).',
+    inputSchema: obj({
+      filename: { type: 'string', description: 'File name in Downloads (default page.pdf).' },
+      format: { type: 'string', enum: ['A4', 'Letter'], default: 'A4' },
+      landscape: { type: 'boolean', default: false },
+      printBackground: { type: 'boolean', default: true },
+      pageRanges: { type: 'string', description: 'E.g. "1-3, 5".' },
+      returnBase64: { type: 'boolean', default: false },
+      tabId,
+    }),
+    readOnly: false,
+    timeoutMs: 60_000,
+  },
+  {
+    name: 'browser_emulate',
+    title: 'Emulate device',
+    description:
+      'Change how one tab looks to the page: device preset or viewport size, mobile mode, user agent, light/dark colour scheme, timezone, offline mode and network speed. Applies to that tab only until reset:true. Call it with no options to see the current state.',
+    inputSchema: obj({
+      device: { type: 'string', enum: ['desktop', 'iphone', 'android', 'ipad'], description: '"desktop" removes the viewport and user agent override.' },
+      width: { type: 'integer' },
+      height: { type: 'integer' },
+      deviceScaleFactor: { type: 'number' },
+      mobile: { type: 'boolean' },
+      userAgent: { type: 'string' },
+      colorScheme: { type: 'string', enum: ['light', 'dark', 'none'] },
+      timezone: { type: 'string', description: 'IANA name, e.g. "Asia/Tokyo".' },
+      offline: { type: 'boolean' },
+      network: { type: 'string', enum: ['none', 'slow-3g', 'fast-3g', '4g'] },
+      reset: { type: 'boolean', default: false, description: 'Remove every override from the tab.' },
+      tabId,
+    }),
+    readOnly: false,
+    timeoutMs: 20_000,
+  },
+  {
+    name: 'browser_cookies',
+    title: 'Cookies',
+    description:
+      "Read, set or delete browser cookies for a URL (default: the current tab's site) or domain. These are the user's real cookies, including login sessions: touch them only when the task needs it.",
+    inputSchema: obj({
+      action: { type: 'string', enum: ['get', 'set', 'delete'], default: 'get' },
+      url: { type: 'string', description: "Site the cookie belongs to. Defaults to the current tab's URL." },
+      domain: { type: 'string', description: 'Match or set by domain instead of URL, e.g. ".example.com".' },
+      name: { type: 'string', description: 'Cookie name (required for set and delete; filters get).' },
+      value: { type: 'string', description: 'Cookie value (set).' },
+      path: { type: 'string' },
+      secure: { type: 'boolean' },
+      httpOnly: { type: 'boolean' },
+      sameSite: { type: 'string', enum: ['no_restriction', 'lax', 'strict'] },
+      expiresInDays: { type: 'number', description: 'Set: lifetime; omit for a session cookie.' },
+      tabId,
+    }),
+    readOnly: false,
+    timeoutMs: 20_000,
+  },
+  {
+    name: 'browser_history',
+    title: 'Browsing history',
+    description: "Search the user's browsing history by text (title or URL), newest first.",
+    inputSchema: obj({
+      text: { type: 'string', description: 'Search text; omit for the most recent pages.' },
+      days: { type: 'number', description: 'How far back to look (default 30).' },
+      maxResults: { type: 'integer', description: 'Default 20, max 100.' },
+    }),
+    readOnly: true,
+    timeoutMs: 20_000,
+  },
+  {
+    name: 'browser_windows',
+    title: 'Windows',
+    description:
+      'List, open, close or focus browser windows. A new window opens in the background unless focused is true; its first tab becomes your default tab.',
+    inputSchema: obj({
+      action: { type: 'string', enum: ['list', 'new', 'close', 'focus'], default: 'list' },
+      windowId: { type: 'integer', description: 'Required for close and focus.' },
+      url: { type: 'string', description: 'URL to open with "new".' },
+      focused: { type: 'boolean', default: false },
+      incognito: { type: 'boolean', description: 'Needs "Allow in Incognito" for this extension.' },
+      width: { type: 'integer' },
+      height: { type: 'integer' },
+      state: { type: 'string', enum: ['normal', 'minimized', 'maximized', 'fullscreen'] },
+    }),
+    readOnly: false,
+    timeoutMs: 30_000,
+  },
+  {
+    name: 'browser_select_text',
+    title: 'Select text',
+    description:
+      'Select text on the page: all the text of an element (ref), or the first occurrence of a phrase (optionally inside a ref). Returns the selected text; follow with browser_clipboard "copy" to keep it.',
+    inputSchema: obj({
+      text: { type: 'string', description: 'Phrase to select. Omit with ref to select the whole element.' },
+      ref: { ...ref, description: 'Element to select in, or select entirely.' },
+      tabId,
+    }),
+    readOnly: false,
+    timeoutMs: 20_000,
+  },
+  {
+    name: 'browser_clipboard',
+    title: 'Clipboard',
+    description:
+      'Your own clipboard (not shared with other agents): "copy" stores the current selection or the given text, "paste" types it into the focused element or into ref, "read" returns it.',
+    inputSchema: obj({
+      action: { type: 'string', enum: ['copy', 'paste', 'read'], default: 'read' },
+      text: { type: 'string', description: 'copy: store this instead of the selection. paste: paste this instead of the clipboard.' },
+      ref: { ...ref, description: 'paste: click into this field first (appends at the end).' },
+      tabId,
+    }),
+    readOnly: false,
+    timeoutMs: 20_000,
   },
 ];
 

@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "Helmsman – AI browser agent",
+  "name": "Helmsman \u2013 AI browser agent",
   "short_name": "Helmsman",
   "version": "1.0.0",
   "description": "Let ChatGPT, Claude and other AI agents drive your browser: read pages, click, type and fill forms, even inside iframes and canvas apps.",
@@ -29,7 +29,10 @@
     "storage",
     "alarms",
     "downloads",
-    "webNavigation"
+    "webNavigation",
+    "tabGroups",
+    "cookies",
+    "history"
   ],
   "host_permissions": [
     "<all_urls>"

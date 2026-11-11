@@ -85,7 +85,8 @@ async function authorize(request: Request, env: Env): Promise<Response> {
   }
 
   const approved = await oauth.approveConsent(request, handle);
-  const props: AuthProps = { device };
+  const clientName = String(form.get('client_name') ?? '').replace(/[#\n\r]/g, ' ').trim().slice(0, 24) || 'AI';
+  const props: AuthProps = { device, agent: `${clientName}#${approved.request.clientId}` };
   const { redirectTo } = await oauth.completeAuthorization({
     request: approved.request,
     userId: device,
@@ -130,7 +131,7 @@ const defaultHandler: ExportedHandler<Env> = {
           await env.OAUTH_KV.put(`device:${device}`, 'dev');
           return new Response(await signDeviceToken(env.TOKEN_SECRET, device));
         }
-        if (url.pathname === '/dev/mcp') return await handleMcp(request, env, device);
+        if (url.pathname === '/dev/mcp') return await handleMcp(request, env, device, url.searchParams.get('agent') ?? undefined);
       }
       return new Response('Not found', { status: 404 });
     } catch (error) {
@@ -145,11 +146,11 @@ const defaultHandler: ExportedHandler<Env> = {
 
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const device = (ctx.props as AuthProps | undefined)?.device;
+    const { device, agent } = (ctx.props as AuthProps | undefined) ?? {};
     if (!device || !(await isActiveDevice(env, device))) {
       return new Response('This Chrome was disconnected. Reconnect Helmsman in ChatGPT.', { status: 401 });
     }
-    return handleMcp(request, env, device);
+    return handleMcp(request, env, device, agent);
   },
 };
 

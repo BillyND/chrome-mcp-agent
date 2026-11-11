@@ -19,6 +19,7 @@ interface Pending {
   ws: WebSocket;
   tool: string;
   args: Record<string, unknown>;
+  agent?: string;
   /** Read-only calls are safe to send again when the socket they went out on dies. */
   retryable: boolean;
   resolve: (r: CallResult) => void;
@@ -105,7 +106,7 @@ export class DeviceHub extends DurableObject<Env> {
   }
 
   /** RPC from the MCP endpoint: run one tool in the user's Chrome. */
-  async call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false): Promise<CallResult> {
+  async call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false, agent?: string): Promise<CallResult> {
     const ws = await this.waitForSocket(CONNECT_GRACE_MS);
     if (!ws) {
       return errorResult(
@@ -118,7 +119,7 @@ export class DeviceHub extends DurableObject<Env> {
         this.pending.delete(id);
         resolve(errorResult(`The browser did not finish "${tool}" within ${Math.round(timeoutMs / 1000)}s. Take a snapshot to see the current state.`));
       }, timeoutMs);
-      this.pending.set(id, { ws, tool, args, retryable: readOnly, resolve, timer });
+      this.pending.set(id, { ws, tool, args, agent, retryable: readOnly, resolve, timer });
       this.dispatch(id, ws);
     });
   }
@@ -129,7 +130,7 @@ export class DeviceHub extends DurableObject<Env> {
     p.ws = ws;
     p.chunks = undefined;
     try {
-      ws.send(JSON.stringify({ type: 'call', id, tool: p.tool, args: p.args } satisfies HubToExtension));
+      ws.send(JSON.stringify({ type: 'call', id, tool: p.tool, args: p.args, agent: p.agent } satisfies HubToExtension));
     } catch {
       this.orphan(ws, 1011);
     }
