@@ -46,14 +46,17 @@ const common = {
 };
 await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/background/index.ts')], outfile: path.join(out, 'background.js'), format: 'esm' });
 await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/content/index.ts')], outfile: path.join(out, 'content.js'), format: 'iife' });
-await esbuild.build({
-  ...common,
-  entryPoints: [path.join(ext, 'src/popup/app.tsx')],
-  outfile: path.join(out, 'popup.js'),
-  format: 'iife',
-  jsx: 'automatic',
-  define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
-});
+// The popup and the audit page are React apps sharing one stylesheet.
+for (const [entry, file] of [['popup/app.tsx', 'popup.js'], ['audit/app.tsx', 'audit.js']]) {
+  await esbuild.build({
+    ...common,
+    entryPoints: [path.join(ext, 'src', entry)],
+    outfile: path.join(out, file),
+    format: 'iife',
+    jsx: 'automatic',
+    define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
+  });
+}
 // Tailwind v4 compiles the shadcn theme and the classes used by the popup.
 execFileSync(process.execPath, [path.join(root, 'node_' + 'modules', '@tailwindcss', 'cli', 'dist', 'index.mjs'), '-i', path.join(ext, 'src/popup/styles.css'), '-o', path.join(out, 'popup.css'), '--minify'], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
 

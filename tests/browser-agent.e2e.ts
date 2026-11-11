@@ -8,12 +8,14 @@ import os from 'node:os';
 import path from 'node:path';
 import { cloudCall, refOf } from './fixtures/helpers';
 import { FIXTURE_PORT, startFixtures } from './fixtures/server.mjs';
+import { autoApprove } from './support/prompts';
 
 const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 const DEVICE = 'e2e-device';
 const EXT = path.resolve('extension/unpacked');
 
 let ctx: BrowserContext;
+let stopApprover: () => void = () => {};
 let fixtures: { url: string; close: () => Promise<unknown> };
 const call = (name: string, args: Record<string, unknown> = {}) => cloudCall(GATEWAY, DEVICE, name, args);
 
@@ -53,9 +55,12 @@ test.beforeAll(async () => {
   // Reconnect with the stored account (the popup's "reconnect" message does the same).
   await sw.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {}));
   await expect.poll(async () => (await call('browser_tabs', { action: 'list' })).isError ?? false, { timeout: 30_000 }).toBe(false);
+  // Sensitive clicks ("Gửi") wait for the user: this stand-in approves them like a click on the prompt would.
+  stopApprover = autoApprove(ctx, sw);
 });
 
 test.afterAll(async () => {
+  stopApprover();
   await ctx?.close();
   await fixtures?.close();
 });

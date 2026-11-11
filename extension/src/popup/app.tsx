@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getPrefs, isDark, setPrefs, t, type Key, type Prefs } from '../i18n';
 import type { PopupState, RuntimeMessage } from '../messages';
+import { PendingPrompts, SitesSection } from './sites-section';
 import { Badge, Button, Card, Input, Switch, ToggleGroup, ToggleGroupItem } from './ui/components';
 import { cn } from './ui/utils';
 
@@ -144,6 +145,8 @@ function App() {
         </Badge>
       </header>
 
+      <PendingPrompts s={s} lang={prefs.lang} />
+
       {!signedIn ? (
         <section id="signed-out" className="flex flex-col gap-2.5">
           <p className="text-[15px] text-muted-foreground">{tr('tagline')}</p>
@@ -255,6 +258,8 @@ function App() {
         </ul>
         </>
       )}
+
+      <SitesSection s={s} lang={prefs.lang} />
 
       <footer className="flex items-center gap-2 pt-0.5">
         <ToggleGroup type="single" value={prefs.lang} onValueChange={(v) => v && void update({ lang: v as Prefs['lang'] })} aria-label="Language">

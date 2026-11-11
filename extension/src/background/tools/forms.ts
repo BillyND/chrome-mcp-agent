@@ -1,6 +1,7 @@
 // Form tools: fill many fields at once, choose <select> options.
 
 import { frameCall } from '../frames';
+import { guardTyping } from '../policy/guard';
 import { clickTarget, fillTarget } from './input';
 import { locate } from './locate';
 import { afterAction } from './page-summary';
@@ -28,6 +29,7 @@ export const formTools = {
         done.push(`${t.prep.label} → ${want ? 'checked' : 'unchecked'}`);
       } else {
         const str = Array.isArray(value) ? value.join(', ') : String(value);
+        await guardTyping(ctx, tabId, field.ref, str);
         await fillTarget(tabId, t, str, ctx);
         done.push(`${t.prep.label} = ${JSON.stringify(str.slice(0, 60))}`);
       }

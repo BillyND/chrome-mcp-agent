@@ -3,6 +3,7 @@
 
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
+import { unwrapUntrusted } from './fixtures/helpers';
 import { call, refOf, SITE_A, startHarness, stopHarness, tabIdOf, type Harness } from './support/harness';
 
 let h: Harness;
@@ -20,11 +21,17 @@ test.afterAll(async () => {
   await stopHarness(h);
 });
 
+/** The JSON object in a tool result, without the untrusted-content envelope. */
+const jsonOf = (text: string) => {
+  const body = unwrapUntrusted(text);
+  return JSON.parse(body.slice(body.indexOf('{')));
+};
+
 /** Evaluates in a tab and returns the JSON result text after the "result:" line. */
 async function evalIn(agent: string, tabId: number, script: string): Promise<string> {
   const r = await call('browser_evaluate', { script, tabId }, agent);
   expect(r.isError, r.text).toBeFalsy();
-  return r.text.split('result:\n')[1];
+  return unwrapUntrusted(r.text).split('result:\n')[1];
 }
 
 const groupsInChrome = () =>
@@ -215,7 +222,7 @@ test.describe('new tools', () => {
   test('browser_extract returns links, tables, headings, forms and metadata as JSON', async () => {
     const r = await call('browser_extract', {}, T);
     expect(r.isError, r.text).toBeFalsy();
-    const data = JSON.parse(r.text.slice(r.text.indexOf('{')));
+    const data = jsonOf(r.text);
     expect(data.meta).toMatchObject({ title: 'Data Page', description: 'Mô tả trang dữ liệu', canonical: `${SITE_A}/data.html`, 'og:title': 'OG Dữ liệu', lang: 'vi' });
     expect(data.headings).toEqual(expect.arrayContaining([expect.objectContaining({ level: 1, text: 'Bảng giá' })]));
     expect(data.links).toEqual(expect.arrayContaining([expect.objectContaining({ text: 'Về trang chủ', href: `${SITE_A}/index.html` })]));
@@ -227,13 +234,13 @@ test.describe('new tools', () => {
     expect(form.fields[1].options).toEqual(['S', 'M']);
 
     const only = await call('browser_extract', { what: ['headings'], maxItems: 1 }, T);
-    const slim = JSON.parse(only.text.slice(only.text.indexOf('{')));
+    const slim = jsonOf(only.text);
     expect(Object.keys(slim)).toEqual(['headings']);
     expect(slim.headings).toHaveLength(1);
 
     const snap = (await call('browser_snapshot', {}, T)).text;
     const scoped = await call('browser_extract', { what: ['links'], ref: refOf(snap, 'Về trang chủ', 'link') }, T);
-    expect(JSON.parse(scoped.text.slice(scoped.text.indexOf('{'))).links).toHaveLength(1);
+    expect(jsonOf(scoped.text).links).toHaveLength(1);
   });
 
   test('browser_wait_for understands selectors and network idle', async () => {

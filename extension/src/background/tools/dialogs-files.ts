@@ -2,6 +2,7 @@
 
 import { send, sessionOf } from '../cdp';
 import { frameCall, parseRef, readyFrames } from '../frames';
+import { guardUpload } from '../policy/guard';
 import { fetchAsBase64 } from './downloads';
 import { afterAction } from './page-summary';
 import { prepareTab } from './tab';
@@ -20,6 +21,7 @@ export const dialogFileTools = {
 
   browser_file_upload: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Tải file lên');
+    for (const f of (args.files ?? []) as Args[]) guardUpload(ctx, String(f.name ?? ''), f.base64 ? Math.floor((String(f.base64).length * 3) / 4) : undefined);
     const files = await Promise.all(
       ((args.files ?? []) as Args[]).map(async (f) => {
         if (f.base64) return { name: String(f.name), mimeType: String(f.mimeType ?? 'application/octet-stream'), base64: String(f.base64) };
@@ -30,6 +32,7 @@ export const dialogFileTools = {
         throw new ToolError(`File "${f.name}" needs a url or base64 content.`);
       }),
     );
+    for (const f of files) guardUpload(ctx, f.name, Math.floor((f.base64.length * 3) / 4));
     const { frameId, local } = parseRef(args.ref);
     await readyFrames(tab.id!);
     const res = await frameCall<string>(tab.id!, frameId, { cmd: 'set-files', ref: local, files }, 30_000);

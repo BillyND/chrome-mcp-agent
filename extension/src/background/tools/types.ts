@@ -1,6 +1,7 @@
 // Shared types and tiny helpers for every tool family.
 
 import type { ToolContent } from '../../../../shared/protocol';
+import type { ActivityEntry } from '../../messages';
 import { state } from '../state';
 
 export type Args = Record<string, any>;
@@ -13,6 +14,10 @@ export interface ToolCtx {
   tabId: number;
   /** Aborted when the user presses Stop; captured when the call started. */
   signal: AbortSignal;
+  /** What the safety layer learned about this call, for the audit log. */
+  audit: Pick<ActivityEntry, 'host' | 'outcome' | 'approval'>;
+  /** Statements by Helmsman itself (not page content) added to the result outside the untrusted envelope. */
+  notes: string[];
 }
 
 export type ToolFn = (args: Args, ctx: ToolCtx) => Promise<ToolContent[]>;
@@ -27,6 +32,9 @@ export const tabTool = (run: ToolFn): ToolSpec => ({ run, scope: 'tab' });
 export const freeTool = (run: ToolFn): ToolSpec => ({ run, scope: 'free' });
 
 export class ToolError extends Error {}
+
+/** A failure whose message Helmsman wrote itself (policy refusals, the user's answers); it never quotes a page, so it is not wrapped as untrusted. */
+export class TrustedError extends ToolError {}
 
 export const STOPPED = 'The user pressed Stop in Chrome. Stop working and ask the user how to continue.';
 

@@ -45,14 +45,64 @@ export type FrameRequest =
   | { cmd: 'read-click-probe' }
   | { cmd: 'synthetic-click'; ref: string; button: string; clickCount: number; modifiers: string[] }
   | { cmd: 'synthetic-pointer'; ref: string; from: { x: number; y: number }; to?: { x: number; y: number }; button: string; clickCount: number }
+  | { cmd: 'describe-target'; ref?: string; point?: { x: number; y: number } }
+  | { cmd: 'detect-gates' }
   | { cmd: 'overlay'; action: OverlayAction };
+
+/** What the safety layer needs to know about an element to classify an action on it. */
+export interface ElementFacts {
+  tag: string;
+  role: string | null;
+  inputType?: string;
+  /** Accessible name. */
+  name: string;
+  /** Visible text, clipped. */
+  text: string;
+  /** name, id, placeholder, aria-label and label text of a field, for recognising what it asks for. */
+  fieldHints: string;
+  autocomplete: string;
+  /** Activating it submits a form (submit button, or a button without a type inside a form). */
+  isSubmit: boolean;
+  /** Pressing Enter in it submits a form. */
+  inForm: boolean;
+  /** Form id, name, action and the labels of its submit buttons. */
+  formHint: string;
+  href?: string;
+  download: boolean;
+}
+
+/** A login field or a CAPTCHA the user must handle. */
+export interface PageGates {
+  password: boolean;
+  captcha: boolean;
+}
+
+export type PromptKind = 'site' | 'sensitive' | 'handback';
+/** Answers to an on-page prompt. */
+export type Choice = 'once' | 'always' | 'approve' | 'done' | 'decline';
+
+/** An on-page confirmation the user answers with a click. */
+export interface PromptSpec {
+  id: string;
+  kind: PromptKind;
+  /** Short agent label ("Claude Code"). */
+  agent: string;
+  host: string;
+  /** sensitive: the element's label; handback: the reason the agent gave. */
+  label: string;
+  /** sensitive: category key (send, purchase, delete…). */
+  category: string;
+  choices: Choice[];
+}
 
 export type OverlayAction =
   | { type: 'show'; label: string; paused: boolean }
   | { type: 'move'; x: number; y: number; durationMs: number }
   | { type: 'click'; x: number; y: number }
   | { type: 'hide' }
-  | { type: 'avoid'; x: number; y: number };
+  | { type: 'avoid'; x: number; y: number }
+  | { type: 'prompt'; prompt: PromptSpec }
+  | { type: 'prompt-end'; id: string };
 
 export type FrameResponse<T = unknown> = { ok: true; value: T } | { ok: false; error: string };
 
@@ -65,13 +115,27 @@ export type RuntimeMessage =
   | { type: 'logout' }
   | { type: 'reconnect' }
   | { type: 'set-local'; enabled: boolean }
-  | { type: 'get-state' };
+  | { type: 'get-state' }
+  | { type: 'approval-decision'; id: string; choice: Choice }
+  | { type: 'set-site-rule'; host: string; action: SiteAction | null }
+  | { type: 'clear-log' }
+  | { type: 'open-audit' };
+
+export type SiteAction = 'allow' | 'ask' | 'block';
 
 export interface ActivityEntry {
   t: number;
   tool: string;
   summary: string;
   ok: boolean;
+  /** Agent label that made the call. */
+  agent?: string;
+  /** Site the call acted on. */
+  host?: string;
+  /** How the call ended: done, failed, refused by a site rule or hard block, or declined by the user. */
+  outcome?: 'ok' | 'error' | 'blocked' | 'declined';
+  /** The user's answer when the call needed one. */
+  approval?: 'approved' | 'declined' | 'timeout';
 }
 
 export type ConnectionStatus = 'signed-out' | 'connecting' | 'connected' | 'offline' | 'replaced' | 'not-allowed' | 'off';
@@ -86,4 +150,13 @@ export interface PopupState {
   lastError?: string;
   /** Local mode: connection to an MCP server running on this machine. `connecting` means waiting for it to start. */
   local: { enabled: boolean; status: ConnectionStatus; port: number };
+  /** The user's site rules and the built-in blocks, for the "Sites" section. */
+  sites: SitesView;
+  /** Confirmations waiting for the user (the popup answers them when the page can't show one). */
+  pending: PromptSpec[];
+}
+
+export interface SitesView {
+  rules: Array<{ host: string; action: SiteAction }>;
+  defaults: Array<{ host: string; category: string; unblocked: boolean }>;
 }

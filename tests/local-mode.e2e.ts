@@ -11,6 +11,7 @@ import { TOOLS } from '../shared/tools';
 import { cloudCall, refOf } from './fixtures/helpers';
 import { StdioMcpClient } from './fixtures/mcp-stdio-client';
 import { startFixtures } from './fixtures/server.mjs';
+import { autoApprove } from './support/prompts';
 
 const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 const LOCAL_PORT = Number(process.env.HELMSMAN_PORT ?? 47821);
@@ -147,6 +148,7 @@ test.describe('local mode in Chromium', () => {
   let fixtures: { url: string; close: () => Promise<unknown> };
   let popup: Page;
   let extOrigin: string;
+  let stopApprover: () => void = () => {};
   const clients: StdioMcpClient[] = [];
   const cloud = (name: string, args: Record<string, unknown> = {}) => cloudCall(GATEWAY, DEVICE, name, args);
   const client = (name: string) => {
@@ -168,6 +170,7 @@ test.describe('local mode in Chromium', () => {
     let [sw] = ctx.serviceWorkers();
     sw ??= await ctx.waitForEvent('serviceworker');
     extOrigin = new URL(sw.url()).host;
+    stopApprover = autoApprove(ctx, sw);
     const page = ctx.pages()[0] ?? (await ctx.newPage());
     page.on('dialog', () => {});
     await page.goto(fixtures.url);
@@ -176,6 +179,7 @@ test.describe('local mode in Chromium', () => {
   });
 
   test.afterAll(async () => {
+    stopApprover();
     await Promise.all(clients.map((c) => c.close()));
     await ctx?.close();
     await fixtures?.close();

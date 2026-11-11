@@ -7,8 +7,8 @@
 // Everything lives in a closed shadow root with pointer-events: none (except
 // the bar's buttons) so it never changes what the page receives.
 
-import { getPrefs, isDark, t, type Prefs } from '../i18n';
-import type { OverlayAction } from '../messages';
+import { getPrefs, isDark, t, tf, type Key, type Prefs } from '../i18n';
+import type { OverlayAction, PromptSpec, RuntimeMessage } from '../messages';
 
 const CSS = `
 :host{all:initial}
@@ -28,13 +28,21 @@ const CSS = `
 button{all:unset;cursor:pointer;font:500 12px/1 ui-sans-serif,system-ui,sans-serif;height:28px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;border:1px solid var(--border);color:var(--danger);background:var(--bg);transition:background .15s}
 button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 .paused button{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.prompts{position:fixed;top:16px;right:16px;width:min(380px,calc(100vw - 32px));display:flex;flex-direction:column;gap:8px}
+.prompt{pointer-events:auto;padding:12px 14px;border-radius:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);box-shadow:0 10px 30px -10px rgba(0,0,0,.3),0 2px 6px -2px rgba(0,0,0,.1)}
+.prompt h4{margin:0 0 4px;font:600 14px/1.35 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;word-break:break-word}
+.prompt p{margin:0 0 10px;color:var(--muted);font:400 12px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;word-break:break-word}
+.prompt .row{display:flex;flex-wrap:wrap;gap:8px;justify-content:flex-end}
+.prompt button{color:var(--fg)}
+.prompt button:hover{background:color-mix(in srgb,var(--fg) 6%,var(--bg))}
+.prompt button.primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
 `;
 
 // Rounded pointer: zinc-900 body with a white rim, readable on light and dark pages.
 const CURSOR_SVG = `<svg width="28" height="28" viewBox="0 0 28 28"><path d="M4.6 3.2c-.5-.3-1.1.2-.9.7l6.6 19.2c.2.6 1.1.6 1.3 0l2.5-7.1c.1-.3.3-.5.6-.6l7.1-2.6c.6-.2.6-1.1 0-1.3z" fill="#18181b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>`;
 
 let host: HTMLElement | null = null;
-let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement } | null = null;
+let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement; prompts: HTMLElement } | null = null;
 let pos: { x: number; y: number } | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 let frame = 0;
@@ -47,9 +55,9 @@ function ensure() {
   if (parts && host?.isConnected) return parts;
   host = document.createElement('helmsman-overlay');
   const root = host.attachShadow({ mode: 'closed' });
-  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor">${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div></div>`;
+  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor">${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div><div class="prompts"></div></div>`;
   const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;
-  parts = { layer: q('.layer'), cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button') };
+  parts = { layer: q('.layer'), cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button'), prompts: q('.prompts') };
   void loadPrefs();
   parts.btn.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -168,6 +176,49 @@ function press() {
   setTimeout(() => place(x, y, 0, 1), 110);
 }
 
+const PRIMARY = new Set(['once', 'approve', 'done']);
+
+function el(tag: string, className: string, text?: string): HTMLElement {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** The confirmation card: built with textContent only, because the label can come from the page. */
+async function showPrompt(spec: PromptSpec): Promise<void> {
+  const p = ensure();
+  await loadPrefs();
+  const lang = prefs.lang;
+  const params = { agent: spec.agent, host: spec.host, label: spec.label, reason: spec.label, category: t(lang, `cat_${spec.category}` as Key) };
+  const title = tf(lang, `prompt_${spec.kind}` as Key, params);
+  const detail = tf(lang, `prompt_${spec.kind}_detail` as Key, params);
+  endPrompt(spec.id);
+  const card = el('div', `prompt ${spec.kind}`);
+  card.dataset.id = spec.id;
+  card.setAttribute('role', 'alertdialog');
+  card.append(el('h4', '', title), el('p', '', detail));
+  const row = el('div', 'row');
+  for (const choice of spec.choices) {
+    const b = el('button', PRIMARY.has(choice) ? 'primary' : '', t(lang, `choice_${choice}` as Key));
+    b.addEventListener('click', (e) => {
+      // Only a real click by the user answers; a page or script cannot synthesize one.
+      if (!e.isTrusted) return;
+      e.stopPropagation();
+      const msg: RuntimeMessage = { type: 'approval-decision', id: spec.id, choice };
+      chrome.runtime.sendMessage(msg).catch(() => {});
+      endPrompt(spec.id);
+    });
+    row.append(b);
+  }
+  card.append(row);
+  p.prompts.append(card);
+}
+
+function endPrompt(id: string) {
+  parts?.prompts.querySelectorAll('.prompt').forEach((c) => (c as HTMLElement).dataset.id === id && c.remove());
+}
+
 export async function runOverlay(action: OverlayAction): Promise<void> {
   if (window !== window.top) return;
   switch (action.type) {
@@ -189,6 +240,12 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
       if (under) p.bar.classList.toggle('top');
       break;
     }
+    case 'prompt':
+      await showPrompt(action.prompt);
+      return;
+    case 'prompt-end':
+      endPrompt(action.id);
+      return;
     case 'hide':
       paused = false;
       hideAll();

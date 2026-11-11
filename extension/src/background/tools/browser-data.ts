@@ -1,17 +1,23 @@
 // Browser-level data and windows (not tied to one page): downloads, cookies, history, windows.
 
+import { siteGate, guardDownload } from '../policy/guard';
 import { adopt, withClaimLock } from './agents';
 import { downloadUrl } from './downloads';
 import { pageHeader, resolveTab, waitForLoad } from './tab';
-import { freeTool, text, ToolError, type Args } from './types';
+import { freeTool, text, ToolError, type Args, type ToolCtx } from './types';
 
 const clip = (s: string, n = 300) => (s.length > n ? `${s.slice(0, n)}…` : s);
 
-async function cookieScope(args: Args, agent: string): Promise<{ url?: string }> {
+/** Which site a cookie call is about; the site policy applies to it like to a page. */
+async function cookieScope(args: Args, ctx: ToolCtx): Promise<{ url?: string }> {
   if (args.url) return { url: String(args.url) };
-  if (args.domain) return {};
-  const tab = await resolveTab(agent, args.tabId);
+  if (args.domain) {
+    await siteGate(ctx, `https://${String(args.domain).replace(/^\./, '')}/`);
+    return {};
+  }
+  const tab = await resolveTab(ctx.agent, args.tabId);
   const url = tab.url ?? '';
+  await siteGate(ctx, url);
   if (!/^https?:/.test(url)) throw new ToolError('The tab is not on a website; pass url or domain.');
   return { url };
 }
@@ -27,13 +33,16 @@ function cookieUrl(c: { domain?: string; path?: string; secure?: boolean }, fall
 }
 
 export const browserDataTools = {
-  browser_download: freeTool(async (args) => text(await downloadUrl(String(args.url), args.filename ? String(args.filename) : undefined))),
+  browser_download: freeTool(async (args, ctx) => {
+    await guardDownload(ctx, String(args.url));
+    return text(await downloadUrl(String(args.url), args.filename ? String(args.filename) : undefined));
+  }),
 
   browser_cookies: freeTool(async (args, ctx) => {
     const action = String(args.action ?? 'get');
     if (action === 'set') {
       if (!args.name || args.value === undefined) throw new ToolError('name and value are required for "set".');
-      const { url } = await cookieScope(args, ctx.agent);
+      const { url } = await cookieScope(args, ctx);
       const set = await chrome.cookies.set({
         url: cookieUrl({ domain: args.domain, path: args.path, secure: args.secure }, url),
         name: String(args.name),
@@ -50,12 +59,12 @@ export const browserDataTools = {
     }
     if (action === 'delete') {
       if (!args.name) throw new ToolError('name is required for "delete".');
-      const { url } = await cookieScope(args, ctx.agent);
+      const { url } = await cookieScope(args, ctx);
       const target = cookieUrl({ domain: args.domain, path: args.path }, url);
       const removed = await chrome.cookies.remove({ url: target, name: String(args.name) });
       return text(removed ? `Deleted cookie ${args.name} for ${target}.` : `No cookie named ${args.name} for ${target}.`);
     }
-    const scope = await cookieScope(args, ctx.agent);
+    const scope = await cookieScope(args, ctx);
     const cookies = await chrome.cookies.getAll({ ...scope, name: args.name ? String(args.name) : undefined, domain: args.domain ? String(args.domain) : undefined });
     if (!cookies.length) return text('No cookies match.');
     return text(`${cookies.length} cookie(s)${scope.url ? ` for ${scope.url}` : ''}:\n${cookies.slice(0, 200).map(describeCookie).join('\n')}`);
