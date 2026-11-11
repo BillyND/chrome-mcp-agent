@@ -146,7 +146,7 @@ function App() {
 
       {!signedIn ? (
         <section id="signed-out" className="flex flex-col gap-2.5">
-          <p className="text-muted-foreground">{tr('tagline')}</p>
+          <p className="text-[15px] text-muted-foreground">{tr('tagline')}</p>
           {s.needsPassword && (
             <label className="flex flex-col gap-1.5 text-[13px] font-medium">
               {tr('password')}
@@ -203,7 +203,7 @@ function App() {
 
       <Card id="local" className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-2">
-          <label htmlFor="local-enabled" className="font-medium">
+          <label htmlFor="local-enabled" className="text-[15px] font-medium">
             {tr('localMode')}
           </label>
           <div className="flex items-center gap-2">
@@ -231,7 +231,7 @@ function App() {
 
       {active && (
         <Card className="flex items-center justify-between">
-          <label htmlFor="enabled" className="font-medium">
+          <label htmlFor="enabled" className="text-[15px] font-medium">
             {tr('allow')}
           </label>
           <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />

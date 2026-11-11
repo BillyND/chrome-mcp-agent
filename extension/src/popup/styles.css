@@ -73,11 +73,17 @@
   * {
     @apply border-border outline-ring/50;
   }
+  html {
+    /* Standard 16px rem so Tailwind sizes (text-sm, h-9…) render at their usual size. */
+    font-size: 16px;
+  }
   html,
   body {
     @apply bg-background text-foreground antialiased;
     font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    font-size: 14px;
+  }
+  body {
+    font-size: 15px;
   }
   body {
     width: 360px;
