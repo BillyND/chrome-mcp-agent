@@ -5,12 +5,7 @@ export type ToolContent =
   | { type: 'image'; data: string; mimeType: string };
 
 export type HubToExtension =
-  /**
-   * `agent` identifies the calling AI client (an OAuth client id for the cloud gateway,
-   * `local:<name>` for the local server). Each agent gets its own default tab, and calls
-   * from different agents on different tabs run in parallel.
-   */
-  | { type: 'call'; id: string; tool: string; args: Record<string, unknown>; agent?: string }
+  | { type: 'call'; id: string; tool: string; args: Record<string, unknown>; /** Which AI client issued the call, e.g. "local:claude-code". */ agent?: string }
   | { type: 'hello' };
 
 export type ExtensionToHub =
@@ -28,3 +23,6 @@ export const CHUNK_SIZE = 512 * 1024;
 /** Heartbeat text the runtime answers with "pong" without waking the Durable Object. */
 export const PING = 'ping';
 export const PING_INTERVAL_MS = 20_000;
+
+/** Local mode: the extension connects to the MCP server running on the user's machine. */
+export const DEFAULT_LOCAL_PORT = 47821;

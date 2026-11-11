@@ -98,7 +98,8 @@ export function landingPage(publicUrl: string): string {
     'Helmsman',
     `<section class="hero"><h1>Helmsman</h1>
 <p class="muted">${bi('Cho ChatGPT dùng Chrome của bạn.', 'Let ChatGPT use your Chrome.')}</p>
-<a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a></section>
+<a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a>
+<p class="muted">${bi('Dùng Claude Desktop, Cursor hay Claude Code? Bật <b>Chế độ cục bộ</b> trong extension, không cần tài khoản.', 'Using Claude Desktop, Cursor or Claude Code? Turn on <b>Local mode</b> in the extension, no account needed.')}</p></section>
 <div class="card"><ol class="steps">
 <li><b>${bi('Cài extension', 'Install the extension')}</b><div class="muted">${bi(
       'Giải nén file zip. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.',

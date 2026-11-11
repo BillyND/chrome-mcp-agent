@@ -4,6 +4,8 @@ import type { ActivityEntry, ConnectionStatus, PopupState } from '../messages';
 
 declare const __GATEWAY_URL__: string;
 export const GATEWAY_URL: string = __GATEWAY_URL__;
+declare const __LOCAL_PORT__: number;
+export const LOCAL_PORT: number = __LOCAL_PORT__;
 
 export interface Account {
   token: string;
@@ -21,6 +23,8 @@ export const state = {
   paused: false,
   /** The gateway asked for the group password on the last connect attempt. */
   needsPassword: false,
+  /** Local mode: the extension connects to an MCP server on this machine instead of (or besides) the cloud. */
+  local: { enabled: false, status: 'off' as ConnectionStatus },
   /** Raised while a tool runs so long operations can bail out between steps. */
   abort: new AbortController(),
 };
@@ -49,6 +53,17 @@ export const pausedLoaded: Promise<void> = chrome.storage.local.get('paused').th
   state.paused = paused === true;
 });
 
+/** Resolves once the persisted local-mode flag has been read after a service-worker start. */
+export const localLoaded: Promise<void> = chrome.storage.local.get('localMode').then(({ localMode }) => {
+  state.local.enabled = localMode === true;
+  if (!state.local.enabled) state.local.status = 'off';
+});
+
+export async function setLocalEnabled(enabled: boolean): Promise<void> {
+  state.local.enabled = enabled;
+  await chrome.storage.local.set({ localMode: enabled });
+}
+
 export async function setPaused(paused: boolean): Promise<void> {
   state.paused = paused;
   await chrome.storage.local.set({ paused });
@@ -72,7 +87,7 @@ export async function logActivity(entry: ActivityEntry): Promise<void> {
 }
 
 export async function popupState(): Promise<PopupState> {
-  await pausedLoaded;
+  await Promise.all([pausedLoaded, localLoaded]);
   const [account, { log }] = await Promise.all([getAccount(), chrome.storage.local.get('log')]);
   return {
     status: account ? state.status : state.status === 'not-allowed' ? 'not-allowed' : 'signed-out',
@@ -82,14 +97,29 @@ export async function popupState(): Promise<PopupState> {
     gateway: GATEWAY_URL,
     log: ((log as ActivityEntry[] | undefined) ?? []).slice(0, 20),
     lastError: state.lastError,
+    local: { enabled: state.local.enabled, status: state.local.status, port: LOCAL_PORT },
   };
+}
+
+/** Toolbar badge: clear while any relay is connected, otherwise a hint about the cloud account. */
+function updateBadge() {
+  const connected = state.status === 'connected' || state.local.status === 'connected';
+  const signedOut = state.status === 'signed-out' && !state.local.enabled;
+  void chrome.action.setBadgeText({ text: connected ? '' : signedOut ? '!' : '…' });
+  void chrome.action.setBadgeBackgroundColor({ color: signedOut || state.status === 'not-allowed' ? '#dc2626' : '#d97706' });
 }
 
 export function setStatus(status: ConnectionStatus, error?: string) {
   if (state.status === status && state.lastError === error) return;
   state.status = status;
   state.lastError = error;
-  void chrome.action.setBadgeText({ text: status === 'connected' ? '' : status === 'signed-out' ? '!' : '…' });
-  void chrome.action.setBadgeBackgroundColor({ color: status === 'signed-out' || status === 'not-allowed' ? '#dc2626' : '#d97706' });
+  updateBadge();
+  notify();
+}
+
+export function setLocalStatus(status: ConnectionStatus) {
+  if (state.local.status === status) return;
+  state.local.status = status;
+  updateBadge();
   notify();
 }

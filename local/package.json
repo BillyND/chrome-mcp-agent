@@ -1,0 +1,10 @@
+{
+  "name": "helmsman-mcp",
+  "version": "1.0.0",
+  "description": "Local MCP server for the Chrome MCP Agent extension (stdio MCP, WebSocket on 127.0.0.1).",
+  "type": "module",
+  "bin": { "helmsman-mcp": "helmsman-mcp.mjs" },
+  "files": ["helmsman-mcp.mjs"],
+  "engines": { "node": ">=20" },
+  "license": "MIT"
+}
