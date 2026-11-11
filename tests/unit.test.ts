@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { macCommands, parseShortcut } from '../extension/src/background/keys';
 import { signDeviceToken, verifyDeviceToken } from '../worker/src/device-token';
-import { isAllowedEmail, type Env } from '../worker/src/env';
+import { newCode, normalizeCode } from '../worker/src/pairing';
 import { TOOLS } from '../shared/tools';
 
 const SECRET = 'unit-test-secret-0123456789abcdef0123';
 
 describe('device tokens', () => {
-  it('round-trips the email', async () => {
-    const token = await signDeviceToken(SECRET, 'Ban@Example.com');
-    expect(await verifyDeviceToken(SECRET, token)).toBe('ban@example.com');
+  it('round-trips the device id', async () => {
+    const token = await signDeviceToken(SECRET, 'Device-ABC');
+    expect(await verifyDeviceToken(SECRET, token)).toBe('device-abc');
   });
 
   it('rejects a token signed with another secret', async () => {
@@ -35,16 +35,15 @@ describe('device tokens', () => {
   });
 });
 
-describe('allowlist', () => {
-  const env = { ALLOWED_EMAILS: ' A@x.com, b@y.com ,' } as Env;
-  it('matches case-insensitively and ignores blanks', () => {
-    expect(isAllowedEmail(env, 'a@X.com')).toBe(true);
-    expect(isAllowedEmail(env, 'b@y.com')).toBe(true);
-    expect(isAllowedEmail(env, '')).toBe(false);
-    expect(isAllowedEmail(env, 'c@z.com')).toBe(false);
+describe('connection codes', () => {
+  it('generates readable codes', () => {
+    for (let i = 0; i < 50; i++) expect(newCode()).toMatch(/^[A-HJKMNP-Z2-9]{5}-[A-HJKMNP-Z2-9]{5}$/);
   });
-  it('denies everyone when empty', () => {
-    expect(isAllowedEmail({ ALLOWED_EMAILS: '' } as Env, 'a@x.com')).toBe(false);
+  it('accepts sloppy typing and rejects junk', () => {
+    expect(normalizeCode('k7qx2 mn4pd')).toBe('K7QX2-MN4PD');
+    expect(normalizeCode('K7QX2MN4PD')).toBe('K7QX2-MN4PD');
+    expect(normalizeCode('K7QX2-MN4P')).toBeNull();
+    expect(normalizeCode('K7QX2-MN4P0')).toBeNull(); // 0 is not in the alphabet
   });
 });
 

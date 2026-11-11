@@ -1,74 +1,51 @@
 import { AuthorizationError, CimdFetchError, OAuthProvider } from '@cloudflare/workers-oauth-provider';
 import { AUTH_PROTOCOL_PREFIX, PROTOCOL } from '../../shared/protocol';
 import { signDeviceToken, verifyDeviceToken } from './device-token';
-import { isAllowedEmail, type AuthProps, type Env } from './env';
-import { exchangeGoogleCode, googleAuthorizeUrl, pkcePair } from './google';
+import type { AuthProps, Env } from './env';
 import { handleMcp } from './mcp-server';
 import { consentPage, escapeHtml, landingPage, messagePage } from './pages';
+import { deviceForCode, forgetDevice, isActiveDevice, passwordRequired, registerDevice } from './pairing';
 
 export { DeviceHub } from './device-hub';
 
-/** Google `state` for the extension sign-in flow. `~` never appears in the library's own states. */
-const EXT_STATE_PREFIX = '~ext~';
-const EXTENSION_REDIRECT = /^https:\/\/([a-p]{32})\.chromiumapp\.org\/[^#]*$/;
+/** Wrong connection codes allowed per IP per 10 minutes on the consent page. */
+const MAX_CODE_ATTEMPTS = 20;
 
-const html = (body: string, headers?: Headers) => {
+const html = (body: string, headers?: Headers, status = 200) => {
   const h = headers ?? new Headers();
   h.set('Content-Type', 'text/html; charset=utf-8');
-  return new Response(body, { headers: h });
+  return new Response(body, { status, headers: h });
 };
 
-// ---------- extension sign-in ------------------------------------------------
-
-async function extensionLogin(url: URL, env: Env): Promise<Response> {
-  const redirect = url.searchParams.get('redirect_uri') ?? '';
-  const match = EXTENSION_REDIRECT.exec(redirect);
-  const allowedIds = (env.EXTENSION_IDS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
-  if (!match || (allowedIds.length > 0 && !allowedIds.includes(match[1]))) {
-    return messagePage('Không hợp lệ', 'Yêu cầu đăng nhập này không đến từ extension Chrome MCP Agent.');
-  }
-  const { verifier, challenge } = await pkcePair();
-  const state = EXT_STATE_PREFIX + crypto.randomUUID();
-  await env.OAUTH_KV.put(`ext-login:${state}`, JSON.stringify({ verifier, redirect }), { expirationTtl: 600 });
-  return Response.redirect(googleAuthorizeUrl(env, state, challenge), 302);
+async function deviceFromBearer(request: Request, env: Env): Promise<string | null> {
+  const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const device = token ? await verifyDeviceToken(env.TOKEN_SECRET, token) : null;
+  return device && (await isActiveDevice(env, device)) ? device : null;
 }
 
-async function extensionCallback(url: URL, env: Env, state: string): Promise<Response> {
-  const saved = await env.OAUTH_KV.get<{ verifier: string; redirect: string }>(`ext-login:${state}`, 'json');
-  if (!saved) return messagePage('Hết hạn', 'Phiên đăng nhập đã hết hạn. Bấm lại "Đăng nhập" trong extension.');
-  await env.OAUTH_KV.delete(`ext-login:${state}`);
-  const back = new URL(saved.redirect);
-  const code = url.searchParams.get('code');
-  if (!code) {
-    back.hash = new URLSearchParams({ error: url.searchParams.get('error') ?? 'access_denied' }).toString();
-    return Response.redirect(back.toString(), 302);
-  }
-  const user = await exchangeGoogleCode(env, code, saved.verifier);
-  if (!isAllowedEmail(env, user.email)) {
-    back.hash = new URLSearchParams({ error: 'not_allowed', email: user.email }).toString();
-    return Response.redirect(back.toString(), 302);
-  }
-  const token = await signDeviceToken(env.TOKEN_SECRET, user.email);
-  back.hash = new URLSearchParams({ token, email: user.email, name: user.name ?? '' }).toString();
-  return Response.redirect(back.toString(), 302);
-}
+// ---------- extension --------------------------------------------------------
 
-// ---------- extension WebSocket ---------------------------------------------
+async function extensionRegister(request: Request, env: Env): Promise<Response> {
+  if (request.method === 'GET') return Response.json({ passwordRequired: passwordRequired(env) });
+  const body = (await request.json().catch(() => ({}))) as { password?: string };
+  const result = await registerDevice(env, String(body.password ?? ''));
+  if (!result.ok) return Response.json(result, { status: 403 });
+  return Response.json(result);
+}
 
 async function extensionSocket(request: Request, env: Env): Promise<Response> {
   if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
   const protocols = (request.headers.get('Sec-WebSocket-Protocol') ?? '').split(',').map((p) => p.trim());
   const token = protocols.find((p) => p.startsWith(AUTH_PROTOCOL_PREFIX))?.slice(AUTH_PROTOCOL_PREFIX.length);
   if (!protocols.includes(PROTOCOL) || !token) return new Response('Missing protocol', { status: 400 });
-  const email = await verifyDeviceToken(env.TOKEN_SECRET, token);
-  // Re-checking the allowlist here lets the owner revoke a friend by editing ALLOWED_EMAILS.
-  if (!email || !isAllowedEmail(env, email)) return new Response('Unauthorized', { status: 401 });
+  const device = await verifyDeviceToken(env.TOKEN_SECRET, token);
+  if (!device || !(await isActiveDevice(env, device))) return new Response('Unauthorized', { status: 401 });
   const headers = new Headers(request.headers);
-  headers.set('x-cma-email', email);
-  return env.HUB.get(env.HUB.idFromName(email)).fetch(new Request('https://hub/connect', { headers }));
+  headers.set('x-cma-device', device);
+  return env.HUB.get(env.HUB.idFromName(device)).fetch(new Request('https://hub/connect', { headers }));
 }
 
-// ---------- MCP authorization (ChatGPT signs in through us, we sign in through Google)
+// ---------- MCP authorization: the user proves which Chrome is theirs with its connection code
 
 async function authorize(request: Request, env: Env): Promise<Response> {
   const oauth = env.OAUTH_PROVIDER;
@@ -85,39 +62,39 @@ async function authorize(request: Request, env: Env): Promise<Response> {
     denied.headers.set('Location', denied.redirectTo);
     return new Response(null, { status: 302, headers: denied.headers });
   }
-  const approved = await oauth.approveConsent(request, handle);
-  const { verifier, challenge } = await pkcePair();
-  const { state, headers } = await oauth.beginUpstream(approved.request, { data: { verifier }, headers: approved.headers });
-  headers.set('Location', googleAuthorizeUrl(env, state, challenge));
-  return new Response(null, { status: 302, headers });
-}
 
-async function mcpCallback(request: Request, env: Env): Promise<Response> {
-  const oauth = env.OAUTH_PROVIDER;
-  const url = new URL(request.url);
-  const { request: original, data, headers } = await oauth.finishUpstream<{ verifier: string }>(request);
-  const code = url.searchParams.get('code');
-  if (!code) {
-    const denied = new URL(original.redirectUri);
-    denied.searchParams.set('error', 'access_denied');
-    if (original.state) denied.searchParams.set('state', original.state);
-    headers.set('Location', denied.toString());
-    return new Response(null, { status: 302, headers });
+  const ip = request.headers.get('cf-connecting-ip') ?? 'local';
+  const triesKey = `code-tries:${ip}`;
+  const tries = Number((await env.OAUTH_KV.get(triesKey)) ?? 0);
+  if (tries >= MAX_CODE_ATTEMPTS) {
+    return messagePage('Thử quá nhiều lần', 'Bạn đã nhập sai mã quá nhiều lần. Đợi 10 phút rồi thử lại.', false, 429);
   }
-  const user = await exchangeGoogleCode(env, code, data.verifier);
-  if (!isAllowedEmail(env, user.email)) {
-    return messagePage('Tài khoản chưa được cho phép', `${user.email} chưa nằm trong danh sách được dùng Chrome MCP Agent. Nhờ chủ hệ thống thêm email này.`, false, 403);
+  const device = await deviceForCode(env, String(form.get('code') ?? ''));
+  if (!device) {
+    await env.OAUTH_KV.put(triesKey, String(tries + 1), { expirationTtl: 600 });
+    // The handle is still unused, so the same page can be shown again with the error.
+    const view = {
+      clientName: String(form.get('client_name') ?? 'ChatGPT'),
+      redirectHost: String(form.get('redirect_host') ?? ''),
+      redirectIsLoopback: form.get('redirect_loopback') === '1',
+      clientDomain: String(form.get('client_domain') ?? '') || undefined,
+      handle,
+      error: 'Mã kết nối không đúng. Mở extension Chrome MCP Agent để xem lại mã của bạn.',
+    };
+    return html(consentPage(view), undefined, 400);
   }
-  const props: AuthProps = { email: user.email };
+
+  const approved = await oauth.approveConsent(request, handle);
+  const props: AuthProps = { device };
   const { redirectTo } = await oauth.completeAuthorization({
-    request: original,
-    userId: user.email,
-    metadata: { name: user.name ?? user.email },
-    scope: original.scope,
+    request: approved.request,
+    userId: device,
+    metadata: {},
+    scope: approved.request.scope,
     props,
   });
-  headers.set('Location', redirectTo);
-  return new Response(null, { status: 302, headers });
+  approved.headers.set('Location', redirectTo);
+  return new Response(null, { status: 302, headers: approved.headers });
 }
 
 // ---------- routing ----------------------------------------------------------
@@ -133,27 +110,27 @@ const defaultHandler: ExportedHandler<Env> = {
           return Response.json({ ok: true });
         case '/authorize':
           return await authorize(request, env);
-        case '/callback': {
-          const state = url.searchParams.get('state') ?? '';
-          return state.startsWith(EXT_STATE_PREFIX)
-            ? await extensionCallback(url, env, state)
-            : await mcpCallback(request, env);
-        }
-        case '/ext/login':
-          return await extensionLogin(url, env);
+        case '/ext/register':
+          return await extensionRegister(request, env);
         case '/ext/ws':
           return await extensionSocket(request, env);
         case '/ext/whoami': {
-          const token = (request.headers.get('Authorization') ?? '').replace(/^Bearer\s+/i, '');
-          const email = token ? await verifyDeviceToken(env.TOKEN_SECRET, token) : null;
-          if (!email || !isAllowedEmail(env, email)) return new Response('Unauthorized', { status: 401 });
-          return Response.json({ email });
+          const device = await deviceFromBearer(request, env);
+          return device ? Response.json({ ok: true }) : new Response('Unauthorized', { status: 401 });
+        }
+        case '/ext/forget': {
+          const device = await deviceFromBearer(request, env);
+          if (device) await forgetDevice(env, device);
+          return Response.json({ ok: true });
         }
       }
       if (env.DEV_MODE === '1') {
-        const email = url.searchParams.get('email') ?? '';
-        if (url.pathname === '/dev/token') return new Response(await signDeviceToken(env.TOKEN_SECRET, email));
-        if (url.pathname === '/dev/mcp') return await handleMcp(request, env, email);
+        const device = url.searchParams.get('device') ?? '';
+        if (url.pathname === '/dev/token') {
+          await env.OAUTH_KV.put(`device:${device}`, 'dev');
+          return new Response(await signDeviceToken(env.TOKEN_SECRET, device));
+        }
+        if (url.pathname === '/dev/mcp') return await handleMcp(request, env, device);
       }
       return new Response('Not found', { status: 404 });
     } catch (error) {
@@ -168,9 +145,11 @@ const defaultHandler: ExportedHandler<Env> = {
 
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
-    const email = (ctx.props as AuthProps | undefined)?.email;
-    if (!email || !isAllowedEmail(env, email)) return new Response('Forbidden', { status: 403 });
-    return handleMcp(request, env, email);
+    const device = (ctx.props as AuthProps | undefined)?.device;
+    if (!device || !(await isActiveDevice(env, device))) {
+      return new Response('This Chrome was disconnected. Reconnect Chrome MCP Agent in ChatGPT.', { status: 401 });
+    }
+    return handleMcp(request, env, device);
   },
 };
 

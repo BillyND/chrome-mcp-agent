@@ -11,9 +11,7 @@
   "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "DeviceHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceHub"] }],
   "vars": {
-    "PUBLIC_URL": "https://chrome-mcp-agent.chrome-mcp-agent.workers.dev",
-    "ALLOWED_EMAILS": "",
-    "EXTENSION_IDS": ""
+    "PUBLIC_URL": "https://chrome-mcp-agent.chrome-mcp-agent.workers.dev"
   }
-  // Secrets (wrangler secret put): GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TOKEN_SECRET
+  // Secrets (wrangler secret put): TOKEN_SECRET, optional ACCESS_PASSWORD (group password)
 }

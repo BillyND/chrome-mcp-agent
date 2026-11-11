@@ -89,7 +89,7 @@ export async function connect(): Promise<void> {
     const verdict = await tokenRejected(account.token);
     if (verdict === 'invalid') {
       await setAccount(null);
-      setStatus('signed-out', 'Phiên đăng nhập đã hết hạn hoặc tài khoản không còn được phép. Đăng nhập lại nhé.');
+      setStatus('signed-out', 'Kết nối của Chrome này đã bị huỷ. Bấm Kết nối để tạo mã mới.');
       return;
     }
   }

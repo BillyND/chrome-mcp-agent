@@ -36,6 +36,9 @@ export type FrameRequest =
   | { cmd: 'mark-for-eval'; ref: string; nonce: string }
   | { cmd: 'scroll-element'; ref?: string; dx: number; dy: number }
   | { cmd: 'scroll-info' }
+  | { cmd: 'arm-click-probe'; ref: string }
+  | { cmd: 'read-click-probe' }
+  | { cmd: 'synthetic-click'; ref: string; button: string; clickCount: number; modifiers: string[] }
   | { cmd: 'overlay'; action: OverlayAction };
 
 export type OverlayAction =
@@ -53,7 +56,7 @@ export type RuntimeMessage =
   | { type: 'frame-identified'; nonce: string; offset: { x: number; y: number }; iframeRef: string }
   | { type: 'stop' }
   | { type: 'resume' }
-  | { type: 'login' }
+  | { type: 'connect'; password?: string }
   | { type: 'logout' }
   | { type: 'reconnect' }
   | { type: 'set-enabled'; enabled: boolean }
@@ -70,8 +73,8 @@ export type ConnectionStatus = 'signed-out' | 'connecting' | 'connected' | 'offl
 
 export interface PopupState {
   status: ConnectionStatus;
-  email?: string;
-  name?: string;
+  code?: string;
+  needsPassword: boolean;
   enabled: boolean;
   paused: boolean;
   gateway: string;

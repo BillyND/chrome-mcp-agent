@@ -12,7 +12,7 @@
     "default_icon": { "16": "icons/16.png", "32": "icons/32.png" }
   },
   "background": { "service_worker": "background.js" },
-  "permissions": ["debugger", "tabs", "scripting", "storage", "alarms", "identity", "downloads", "webNavigation"],
+  "permissions": ["debugger", "tabs", "scripting", "storage", "alarms", "downloads", "webNavigation"],
   "host_permissions": ["<all_urls>"],
   "content_scripts": [
     {

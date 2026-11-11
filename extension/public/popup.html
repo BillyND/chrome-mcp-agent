@@ -17,17 +17,18 @@
     <div class="hero">
       <div class="hero-icon">✨</div>
       <h1>Chào bạn!</h1>
-      <p>Đăng nhập một lần để ChatGPT có thể đọc, bấm và gõ trong Chrome giúp bạn.</p>
+      <p>Bấm một lần để ChatGPT có thể đọc, bấm và gõ trong Chrome giúp bạn. Không cần tài khoản.</p>
     </div>
-    <button id="login" class="primary block"><svg width="18" height="18" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.4-.4-3.5z"/><path fill="#FF3D00" d="m6.3 14.7 6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2C29.2 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.5 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2C37 39.2 44 34 44 24c0-1.3-.1-2.4-.4-3.5z"/></svg>Đăng nhập bằng Google</button>
+    <label id="password-field" class="password" hidden><b>Mật khẩu nhóm</b><input id="password" type="password" placeholder="Nhập mật khẩu được chia sẻ"></label>
+    <button id="login" class="primary block">Kết nối Chrome này</button>
     <p id="login-error" class="error" hidden></p>
   </section>
 
   <section id="signed-in" hidden>
-    <div class="status-card">
-      <div class="avatar" id="avatar"></div>
-      <div class="who"><b id="name"></b><span id="email"></span></div>
-      <div class="status" id="status"><span class="dot"></span><span id="status-text"></span></div>
+    <div class="code-card">
+      <div class="code-head"><span>Mã kết nối của bạn</span><div class="status" id="status"><span class="dot"></span><span id="status-text"></span></div></div>
+      <div class="code-row"><code id="code"></code><button id="copy-code" class="ghost small">Copy</button></div>
+      <span class="code-hint">Dán mã này khi ChatGPT hỏi lúc kết nối. Đừng chia sẻ cho người khác.</span>
     </div>
     <p id="status-error" class="hint" hidden></p>
     <button id="use-here" class="primary block" hidden>Dùng Chrome này</button>
@@ -48,7 +49,7 @@
       <ol>
         <li>Mở ChatGPT → <b>Cài đặt</b> → <b>Apps &amp; Connectors</b> → <b>Advanced</b>, bật <b>Developer mode</b>.</li>
         <li>Bấm <b>Create</b>, đặt tên <i>Chrome MCP Agent</i>, dán địa chỉ dưới đây, chọn <b>OAuth</b>.</li>
-        <li>Đăng nhập Google cùng tài khoản này. Xong!</li>
+        <li>Trang cho phép hiện ra: dán <b>mã kết nối</b> ở trên, bấm <b>Cho phép</b>. Xong!</li>
       </ol>
       <div class="url"><code id="mcp-url"></code><button id="copy" class="ghost">Copy</button></div>
     </details>
@@ -56,7 +57,7 @@
     <div class="log-head"><b>Hoạt động gần đây</b><button id="stop" class="danger small">Dừng AI</button></div>
     <ul id="log" class="log"></ul>
 
-    <footer><button id="logout" class="link">Đăng xuất</button><span id="version"></span></footer>
+    <footer><button id="logout" class="link">Ngắt kết nối Chrome này</button><span id="version"></span></footer>
   </section>
 </div>
 <script src="popup.js"></script>

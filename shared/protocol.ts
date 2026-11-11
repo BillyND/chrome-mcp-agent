@@ -6,7 +6,7 @@ export type ToolContent =
 
 export type HubToExtension =
   | { type: 'call'; id: string; tool: string; args: Record<string, unknown> }
-  | { type: 'hello'; email: string };
+  | { type: 'hello' };
 
 export type ExtensionToHub =
   | { type: 'result'; id: string; content: ToolContent[]; isError?: boolean }

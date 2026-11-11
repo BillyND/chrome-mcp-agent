@@ -4,7 +4,7 @@ import type { RuntimeMessage } from '../messages';
 import { detachAll, installCdpListeners } from './cdp';
 import { connect, disconnect, onToolCall, reconnectNow, send } from './connection';
 import { handleFrameIdentified } from './frames';
-import { GATEWAY_URL, getAgentTab, logActivity, notify, popupState, setAccount, setStatus, state } from './state';
+import { GATEWAY_URL, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setStatus, state } from './state';
 import { runTool, showAgentBar } from './tools';
 
 const KEEPALIVE_ALARM = 'keepalive';
@@ -31,29 +31,28 @@ onToolCall((msg) => {
   });
 });
 
-async function login(): Promise<void> {
-  const redirect = chrome.identity.getRedirectURL();
-  const url = `${GATEWAY_URL}/ext/login?redirect_uri=${encodeURIComponent(redirect)}`;
-  let back: string | undefined;
-  try {
-    back = await chrome.identity.launchWebAuthFlow({ url, interactive: true });
-  } catch (e) {
-    setStatus('signed-out', `Đăng nhập chưa xong: ${(e as Error).message}`);
-    return;
-  }
-  const params = new URLSearchParams(new URL(back!).hash.slice(1));
-  if (params.get('error') === 'not_allowed') {
-    setStatus('not-allowed', `${params.get('email')} chưa được cho phép dùng Chrome MCP Agent. Nhờ người quản lý thêm email này.`);
-    return;
-  }
-  const token = params.get('token');
-  const email = params.get('email');
-  if (!token || !email) {
-    setStatus('signed-out', 'Đăng nhập bị huỷ.');
-    return;
-  }
-  await setAccount({ token, email, name: params.get('name') || undefined });
+/** Registers this Chrome with the gateway and gets its connection code. */
+async function register(password = ''): Promise<void> {
   setStatus('connecting');
+  let res: Response;
+  try {
+    res = await fetch(`${GATEWAY_URL}/ext/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+  } catch {
+    setStatus('signed-out', 'Không kết nối được tới máy chủ. Kiểm tra mạng rồi thử lại.');
+    return;
+  }
+  const body = (await res.json().catch(() => ({}))) as { token?: string; code?: string; error?: string };
+  if (!res.ok || !body.token || !body.code) {
+    state.needsPassword = body.error === 'password_required' || body.error === 'wrong_password';
+    setStatus('not-allowed', body.error === 'wrong_password' ? 'Mật khẩu nhóm không đúng.' : state.needsPassword ? '' : 'Máy chủ từ chối kết nối. Thử lại sau.');
+    return;
+  }
+  state.needsPassword = false;
+  await setAccount({ token: body.token, code: body.code });
   await reconnectNow();
 }
 
@@ -82,13 +81,17 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
     case 'get-state':
       void popupState().then(sendResponse);
       return true;
-    case 'login':
-      void login();
+    case 'connect':
+      void register(msg.password);
       return false;
     case 'logout':
       void (async () => {
+        const account = await getAccount();
         disconnect();
         await detachAll();
+        if (account) {
+          await fetch(`${GATEWAY_URL}/ext/forget`, { method: 'POST', headers: { Authorization: `Bearer ${account.token}` } }).catch(() => {});
+        }
         await setAccount(null);
         setStatus('signed-out');
       })();

@@ -29,6 +29,10 @@ button.secondary{background:var(--code);color:var(--text);border:1px solid var(-
 .pill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:3px 10px;border-radius:999px;background:var(--code);color:var(--muted)}
 .notice{border-left:3px solid var(--warn);padding:10px 14px;background:var(--code);border-radius:8px;font-size:14px}
 .big{font-size:44px;line-height:1;margin-bottom:12px}
+.field{display:flex;flex-direction:column;gap:4px;margin-top:16px}
+.field input{font:600 20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;padding:12px 14px;border-radius:12px;border:1px solid var(--line);background:var(--code);color:var(--text)}
+.field input:focus{outline:2px solid var(--accent);outline-offset:1px}
+.error{color:var(--danger);font-weight:600}
 footer{text-align:center;color:var(--muted);font-size:12px;margin-top:24px}
 `;
 
@@ -39,7 +43,7 @@ function layout(title: string, body: string): string {
 <title>${escapeHtml(title)}</title><style>${CSS}</style></head><body><main>
 <div class="brand"><div class="logo">${LOGO}</div><div><h1>Chrome MCP Agent</h1><p>Cho ChatGPT dùng Chrome của bạn</p></div></div>
 ${body}
-<footer>Chrome MCP Agent · chỉ những tài khoản được cho phép mới đăng nhập được</footer>
+<footer>Chrome MCP Agent · mỗi mã kết nối chỉ điều khiển đúng một Chrome</footer>
 </main></body></html>`;
 }
 
@@ -52,8 +56,8 @@ export function landingPage(publicUrl: string): string {
 <li><b>Tải và cài extension</b>
 <div class="row" style="margin:8px 0 10px"><a class="btn" href="/chrome-mcp-agent.zip" download>⬇ Tải extension (.zip)</a></div>
 <span class="muted">Giải nén file vừa tải. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b> (góc phải trên), bấm <b>Load unpacked</b> và chọn thư mục vừa giải nén. Cuối cùng ghim biểu tượng con trỏ tím lên thanh công cụ.</span></li>
-<li><b>Bấm biểu tượng → "Đăng nhập bằng Google"</b><span class="muted">Khi thấy chấm xanh <span class="pill">● Đã kết nối</span> là xong.</span></li>
-<li><b>Thêm vào ChatGPT</b><span class="muted">ChatGPT → Cài đặt → Apps &amp; Connectors → Advanced → bật Developer mode → Create. Dán địa chỉ này, chọn OAuth, rồi đăng nhập Google:</span>
+<li><b>Bấm biểu tượng → "Kết nối"</b><span class="muted">Thấy chấm xanh <span class="pill">● Đã kết nối</span> và một <b>mã kết nối</b> (ví dụ <code>K7QX2-MN4PD</code>) là xong.</span></li>
+<li><b>Thêm vào ChatGPT</b><span class="muted">ChatGPT → Cài đặt → Apps &amp; Connectors → Advanced → bật Developer mode → Create. Dán địa chỉ này, chọn OAuth. Khi ChatGPT mở trang cho phép, dán mã kết nối của bạn vào:</span>
 <div class="url"><code id="u">${escapeHtml(mcpUrl)}</code><button class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('u').textContent);this.textContent='Đã copy ✓'">Copy</button></div></li>
 </ol></div>
 <div class="card"><h2>Dùng thử</h2><p class="muted">Trong ChatGPT, bật connector Chrome MCP Agent rồi nhắn:</p>
@@ -68,6 +72,7 @@ export interface ConsentView {
   redirectHost: string;
   redirectIsLoopback: boolean;
   handle: string;
+  error?: string;
 }
 
 export function consentPage(v: ConsentView): string {
@@ -80,10 +85,17 @@ export function consentPage(v: ConsentView): string {
 <p class="muted">${origin} Quyền truy cập sẽ được gửi tới <b>${escapeHtml(v.redirectHost)}</b>.</p>
 ${v.redirectIsLoopback ? '<p class="notice">Quyền sẽ gửi tới một ứng dụng trên máy tính này. Chỉ tiếp tục nếu bạn vừa bấm kết nối từ ứng dụng đó.</p>' : ''}
 <p>Ứng dụng này sẽ đọc, bấm, gõ và mở trang trong Chrome đang đăng nhập của bạn. Bạn có thể bấm <b>Dừng</b> bất cứ lúc nào.</p>
-<form method="post" class="row">
+<form method="post">
 <input type="hidden" name="handle" value="${escapeHtml(v.handle)}">
-<button name="decision" value="approve">Cho phép &amp; đăng nhập Google</button>
-<button class="secondary" name="decision" value="deny">Từ chối</button>
+<input type="hidden" name="client_name" value="${escapeHtml(v.clientName)}">
+<input type="hidden" name="client_domain" value="${escapeHtml(v.clientDomain ?? '')}">
+<input type="hidden" name="redirect_host" value="${escapeHtml(v.redirectHost)}">
+<input type="hidden" name="redirect_loopback" value="${v.redirectIsLoopback ? '1' : ''}">
+<label class="field"><b>Mã kết nối</b><span class="muted">Bấm biểu tượng Chrome MCP Agent trên thanh công cụ Chrome để xem mã.</span>
+<input name="code" required autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXXX-XXXXX" autofocus></label>
+${v.error ? `<p class="error">${escapeHtml(v.error)}</p>` : ''}
+<div class="row"><button name="decision" value="approve">Cho phép</button>
+<button class="secondary" name="decision" value="deny" formnovalidate>Từ chối</button></div>
 </form></div>`,
   );
 }

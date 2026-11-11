@@ -1,22 +1,20 @@
 // One-command deploy: creates the KV namespace, deploys the Worker, pins its
-// public URL, sets secrets and the allowlist, then packs the extension for it.
+// public URL, sets secrets, then packs the extension (also served from the landing page).
 //
-//   GOOGLE_CLIENT_ID=... GOOGLE_CLIENT_SECRET=... ALLOWED_EMAILS=a@x.com,b@y.com npm run setup
+//   npm run setup                       # anyone with the extension can connect
+//   ACCESS_PASSWORD=... npm run setup   # friends type this group password once when connecting
 //
-// Any value not given in the environment is asked for. Re-running is safe: it
-// keeps the existing KV namespace and TOKEN_SECRET (unless ROTATE_TOKEN_SECRET=1).
+// Re-running is safe: it keeps the KV namespace and TOKEN_SECRET (unless ROTATE_TOKEN_SECRET=1).
 
 import { execFileSync } from 'node:child_process';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
-import readline from 'node:readline/promises';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const config = path.join(root, 'worker', 'wrangler.jsonc');
 const statePath = path.join(root, 'secrets.local.json');
-const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
 
 const wrangler = (args, input) =>
   execFileSync('npx', ['wrangler', ...args, '--config', config], {
@@ -25,11 +23,6 @@ const wrangler = (args, input) =>
     encoding: 'utf8',
     stdio: [input === undefined ? 'inherit' : 'pipe', 'pipe', 'pipe'],
   });
-
-async function ask(name, hint) {
-  if (process.env[name]) return process.env[name].trim();
-  return (await rl.question(`${hint}: `)).trim();
-}
 
 function setConfig(pattern, replacement) {
   const raw = fs.readFileSync(config, 'utf8');
@@ -51,15 +44,12 @@ try {
 
   step('KV namespace for OAuth state');
   if (fs.readFileSync(config, 'utf8').includes('REPLACE_WITH_KV_ID')) {
-    const out = wrangler(['kv', 'namespace', 'create', 'OAUTH_KV']);
+    const out = wrangler(['kv', 'namespace', 'create', 'chrome-mcp-agent-oauth']);
     const id = /"id":\s*"([0-9a-f]{32})"/.exec(out)?.[1] ?? /id = "([0-9a-f]{32})"/.exec(out)?.[1];
     if (!id) throw new Error(`Could not read the KV namespace id from:\n${out}`);
     setConfig('REPLACE_WITH_KV_ID', id);
     console.log(`created ${id}`);
   } else console.log('already configured');
-
-  const allowed = await ask('ALLOWED_EMAILS', 'Google emails allowed to use it (comma separated)');
-  setConfig(/"ALLOWED_EMAILS":\s*"[^"]*"/, `"ALLOWED_EMAILS": "${allowed}"`);
 
   step('Deploying the Worker');
   let out = wrangler(['deploy']);
@@ -71,13 +61,12 @@ try {
   console.log(url);
 
   step('Secrets');
-  const clientId = await ask('GOOGLE_CLIENT_ID', `Google OAuth client ID (redirect URI: ${url}/callback)`);
-  const clientSecret = await ask('GOOGLE_CLIENT_SECRET', 'Google OAuth client secret');
   if (!local.TOKEN_SECRET || process.env.ROTATE_TOKEN_SECRET === '1') local.TOKEN_SECRET = crypto.randomBytes(32).toString('base64url');
   fs.writeFileSync(statePath, JSON.stringify(local, null, 2), { mode: 0o600 });
-  const secrets = { GOOGLE_CLIENT_ID: clientId, GOOGLE_CLIENT_SECRET: clientSecret, TOKEN_SECRET: local.TOKEN_SECRET };
+  const secrets = { TOKEN_SECRET: local.TOKEN_SECRET };
+  if (process.env.ACCESS_PASSWORD) secrets.ACCESS_PASSWORD = process.env.ACCESS_PASSWORD;
   wrangler(['secret', 'bulk'], JSON.stringify(secrets));
-  console.log('GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, TOKEN_SECRET set');
+  console.log(`set: ${Object.keys(secrets).join(', ')}`);
 
   step('Redeploying with the final URL');
   out = wrangler(['deploy']);
@@ -89,8 +78,8 @@ try {
   console.log(`\n✅ Done.
    Landing page:   ${url}
    MCP URL:        ${url}/mcp
-   Extension zip:  extension/chrome-mcp-agent.zip (upload to the Chrome Web Store, or Load unpacked from extension/unpacked)
-   Google OAuth:   authorized redirect URI must be ${url}/callback`);
-} finally {
-  rl.close();
+   Extension:      download button on the landing page (also extension/chrome-mcp-agent.zip)`);
+} catch (e) {
+  console.error(e.message ?? e);
+  process.exit(1);
 }

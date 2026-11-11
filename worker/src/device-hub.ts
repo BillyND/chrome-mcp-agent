@@ -17,13 +17,17 @@ export interface CallResult {
 
 interface Pending {
   ws: WebSocket;
+  tool: string;
+  args: Record<string, unknown>;
+  /** Read-only calls are safe to send again when the socket they went out on dies. */
+  retryable: boolean;
   resolve: (r: CallResult) => void;
   timer: ReturnType<typeof setTimeout>;
   chunks?: string[];
 }
 
 interface SocketInfo {
-  email: string;
+  device: string;
   connectedAt: number;
   version?: string;
   userAgent?: string;
@@ -51,11 +55,12 @@ export class DeviceHub extends DurableObject<Env> {
 
   private acceptExtension(request: Request): Response {
     if (request.headers.get('Upgrade') !== 'websocket') return new Response('Expected WebSocket', { status: 426 });
-    const email = request.headers.get('x-cma-email') ?? '';
+    const device = request.headers.get('x-cma-device') ?? '';
     // One live Chrome per user: the newest connection wins.
-    for (const old of this.ctx.getWebSockets()) {
+    const old = this.ctx.getWebSockets();
+    for (const ws of old) {
       try {
-        old.close(4000, 'Replaced by a newer connection');
+        ws.close(4000, 'Replaced by a newer connection');
       } catch {
         /* already closed */
       }
@@ -63,12 +68,14 @@ export class DeviceHub extends DurableObject<Env> {
     const pair = new WebSocketPair();
     const server = pair[1];
     this.ctx.acceptWebSocket(server);
-    const info: SocketInfo = { email, connectedAt: Date.now() };
+    const info: SocketInfo = { device, connectedAt: Date.now() };
     server.serializeAttachment(info);
-    server.send(JSON.stringify({ type: 'hello', email } satisfies HubToExtension));
+    server.send(JSON.stringify({ type: 'hello' } satisfies HubToExtension));
     const waiters = this.connectWaiters;
     this.connectWaiters = [];
     waiters.forEach((w) => w());
+    // Closing a socket from this side fires no close event here, so hand over its calls now.
+    for (const ws of old) this.orphan(ws, 4000);
     return new Response(null, { status: 101, webSocket: pair[0], headers: { 'Sec-WebSocket-Protocol': PROTOCOL } });
   }
 
@@ -98,7 +105,7 @@ export class DeviceHub extends DurableObject<Env> {
   }
 
   /** RPC from the MCP endpoint: run one tool in the user's Chrome. */
-  async call(tool: string, args: Record<string, unknown>, timeoutMs: number): Promise<CallResult> {
+  async call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false): Promise<CallResult> {
     const ws = await this.waitForSocket(CONNECT_GRACE_MS);
     if (!ws) {
       return errorResult(
@@ -111,15 +118,41 @@ export class DeviceHub extends DurableObject<Env> {
         this.pending.delete(id);
         resolve(errorResult(`The browser did not finish "${tool}" within ${Math.round(timeoutMs / 1000)}s. Take a snapshot to see the current state.`));
       }, timeoutMs);
-      this.pending.set(id, { ws, resolve, timer });
-      try {
-        ws.send(JSON.stringify({ type: 'call', id, tool, args } satisfies HubToExtension));
-      } catch {
-        clearTimeout(timer);
-        this.pending.delete(id);
-        resolve(errorResult('Lost the connection to Chrome before the command was sent. Try again.'));
-      }
+      this.pending.set(id, { ws, tool, args, retryable: readOnly, resolve, timer });
+      this.dispatch(id, ws);
     });
+  }
+
+  private dispatch(id: string, ws: WebSocket): void {
+    const p = this.pending.get(id);
+    if (!p) return;
+    p.ws = ws;
+    p.chunks = undefined;
+    try {
+      ws.send(JSON.stringify({ type: 'call', id, tool: p.tool, args: p.args } satisfies HubToExtension));
+    } catch {
+      this.orphan(ws, 1011);
+    }
+  }
+
+  /** Calls in flight on a dead socket: resend read-only ones once Chrome is back, fail the rest. */
+  private orphan(ws: WebSocket, code: number): void {
+    for (const [id, p] of this.pending) {
+      if (p.ws !== ws) continue;
+      if (p.retryable) {
+        p.retryable = false; // at most one resend
+        void this.waitForSocket(CONNECT_GRACE_MS).then((next) => {
+          if (next && next !== ws) this.dispatch(id, next);
+          else this.settle(id, errorResult('Lost the connection to Chrome. Try again in a moment.'));
+        });
+        continue;
+      }
+      this.settle(id, errorResult(
+        code === 4000
+          ? 'The command was interrupted because Chrome reconnected. Take a snapshot to check whether it completed.'
+          : 'The connection to Chrome dropped while the command was running. Take a snapshot to check whether it completed.',
+      ));
+    }
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -156,14 +189,7 @@ export class DeviceHub extends DurableObject<Env> {
   }
 
   async webSocketClose(ws: WebSocket, code: number): Promise<void> {
-    for (const [id, p] of this.pending) {
-      if (p.ws !== ws) continue;
-      this.settle(id, errorResult(
-        code === 4000
-          ? 'The command was interrupted because Chrome reconnected. Take a snapshot to check whether it completed.'
-          : 'The connection to Chrome dropped while the command was running. Take a snapshot to check whether it completed.',
-      ));
-    }
+    this.orphan(ws, code);
     try {
       ws.close(1000, 'closed');
     } catch {

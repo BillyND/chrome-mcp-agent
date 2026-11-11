@@ -187,6 +187,28 @@ async function clickAt(tabId: number, x: number, y: number, opts: { button?: str
   await overlay(tabId, { type: 'click', x, y });
 }
 
+/**
+ * Real click on a located element. If the element never sees the press (Chrome misroutes
+ * input for some nested cross-site frames), finish with a DOM-level click in its frame.
+ * Returns true when the fallback was needed.
+ */
+async function clickTarget(tabId: number, t: Target, opts: { button?: string; clickCount?: number; modifiers?: string[] } = {}): Promise<boolean> {
+  const armed = await frameCall(tabId, t.frameId, { cmd: 'arm-click-probe', ref: t.local }, 3000).then(() => true, () => false);
+  await clickAt(tabId, t.x, t.y, opts);
+  if (!armed || sessionOf(tabId)?.dialog) return false;
+  await sleep(60);
+  const hit = await frameCall<boolean>(tabId, t.frameId, { cmd: 'read-click-probe' }, 3000).catch(() => true);
+  if (hit) return false;
+  await frameCall(tabId, t.frameId, {
+    cmd: 'synthetic-click',
+    ref: t.local,
+    button: opts.button ?? 'left',
+    clickCount: opts.clickCount ?? 1,
+    modifiers: opts.modifiers ?? [],
+  }).catch(() => {});
+  return true;
+}
+
 async function pressKey(tabId: number, combo: string) {
   const { modifiers, key } = parseShortcut(combo);
   const mask = modifierMask(modifiers);
@@ -453,9 +475,9 @@ const TOOLS: Record<string, ToolFn> = {
     await highlightTarget(tab.id!, t);
     await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
     checkAbort();
-    await clickAt(tab.id!, t.x, t.y, { button: args.button, clickCount: args.doubleClick ? 2 : 1, modifiers: args.modifiers });
+    const fallback = await clickTarget(tab.id!, t, { button: args.button, clickCount: args.doubleClick ? 2 : 1, modifiers: args.modifiers });
     await sleep(250);
-    const warn = t.prep.coveredBy ? ` (note: ${t.prep.coveredBy} was on top of it)` : '';
+    const warn = (t.prep.coveredBy ? ` (note: ${t.prep.coveredBy} was on top of it)` : '') + (fallback ? ' (delivered as a DOM click inside its frame)' : '');
     return afterAction(tab, `${args.doubleClick ? 'Double-clicked' : args.button === 'right' ? 'Right-clicked' : 'Clicked'} ${t.prep.label}${warn}.`);
   },
 
@@ -475,7 +497,7 @@ const TOOLS: Record<string, ToolFn> = {
     await highlightTarget(tab.id!, t);
     await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
     checkAbort();
-    await clickAt(tab.id!, t.x, t.y);
+    await clickTarget(tab.id!, t);
     await sleep(80);
     const clear = args.clear !== false;
     const focus = await frameCall<{ focused: boolean }>(tab.id!, t.frameId, { cmd: 'focus-and-select', ref: t.local, clear });
@@ -508,10 +530,10 @@ const TOOLS: Record<string, ToolFn> = {
         done.push(await frameCall<string>(tab.id!, t.frameId, { cmd: 'select-option', ref: t.local, values }));
       } else if (isToggle) {
         const want = value === true || value === 'true' || value === 'on' || value === 'yes';
-        if (t.prep.checked !== want) await clickAt(tab.id!, t.x, t.y);
+        if (t.prep.checked !== want) await clickTarget(tab.id!, t);
         done.push(`${t.prep.label} → ${want ? 'checked' : 'unchecked'}`);
       } else {
-        await clickAt(tab.id!, t.x, t.y);
+        await clickTarget(tab.id!, t);
         await frameCall(tab.id!, t.frameId, { cmd: 'focus-and-select', ref: t.local, clear: true });
         await pressKey(tab.id!, isMac ? 'Meta+a' : 'Control+a');
         const str = Array.isArray(value) ? value.join(', ') : String(value);

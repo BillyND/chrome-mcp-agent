@@ -14,9 +14,9 @@ Workflow: browser_tabs (list/select or open) -> browser_snapshot -> act with ref
 - Ask the user before purchases, sending messages/emails, deleting data or changing account settings unless they clearly asked for it.
 - If a tool says Chrome is not connected, tell the user to open Chrome and click the Chrome MCP Agent icon.`;
 
-function buildServer(env: Env, email: string): McpServer {
+function buildServer(env: Env, device: string): McpServer {
   const server = new McpServer({ name: 'chrome-mcp-agent', version: '1.0.0' }, { instructions: INSTRUCTIONS });
-  const hub = env.HUB.get(env.HUB.idFromName(email));
+  const hub = env.HUB.get(env.HUB.idFromName(device));
   for (const tool of TOOLS) {
     server.registerTool(
       tool.name,
@@ -32,7 +32,9 @@ function buildServer(env: Env, email: string): McpServer {
         },
       },
       async (args: unknown) => {
-        const result = await hub.call(tool.name, (args ?? {}) as Record<string, unknown>, tool.timeoutMs);
+        const input = (args ?? {}) as Record<string, unknown>;
+        const safeToRepeat = tool.readOnly || (tool.name === 'browser_tabs' && (input.action ?? 'list') === 'list');
+        const result = await hub.call(tool.name, input, tool.timeoutMs, safeToRepeat);
         return { content: result.content, isError: result.isError };
       },
     );
@@ -41,7 +43,7 @@ function buildServer(env: Env, email: string): McpServer {
 }
 
 /** Serves the MCP endpoint for one authenticated user. */
-export async function handleMcp(request: Request, env: Env, email: string): Promise<Response> {
-  const handler = createMcpHandler(() => buildServer(env, email), { legacy: 'stateless', responseMode: 'json' });
+export async function handleMcp(request: Request, env: Env, device: string): Promise<Response> {
+  const handler = createMcpHandler(() => buildServer(env, device), { legacy: 'stateless', responseMode: 'json' });
   return handler.fetch(request);
 }

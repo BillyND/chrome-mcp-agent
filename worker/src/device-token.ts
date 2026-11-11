@@ -5,7 +5,7 @@ const enc = new TextEncoder();
 const DEVICE_TOKEN_TTL_SECONDS = 180 * 24 * 3600;
 
 interface DeviceTokenPayload {
-  sub: string; // email
+  sub: string; // device id
   iat: number;
   exp: number;
 }
@@ -29,15 +29,15 @@ async function key(secret: string): Promise<CryptoKey> {
   ]);
 }
 
-export async function signDeviceToken(secret: string, email: string, now = Date.now()): Promise<string> {
+export async function signDeviceToken(secret: string, device: string, now = Date.now()): Promise<string> {
   const iat = Math.floor(now / 1000);
-  const payload: DeviceTokenPayload = { sub: email.toLowerCase(), iat, exp: iat + DEVICE_TOKEN_TTL_SECONDS };
+  const payload: DeviceTokenPayload = { sub: device.toLowerCase(), iat, exp: iat + DEVICE_TOKEN_TTL_SECONDS };
   const body = b64url(enc.encode(JSON.stringify(payload)));
   const sig = await crypto.subtle.sign('HMAC', await key(secret), enc.encode(body));
   return `${body}.${b64url(sig)}`;
 }
 
-/** Returns the email for a valid, unexpired token, otherwise null. */
+/** Returns the device id for a valid, unexpired token, otherwise null. */
 export async function verifyDeviceToken(secret: string, token: string, now = Date.now()): Promise<string | null> {
   const [body, sig] = token.split('.');
   if (!body || !sig) return null;

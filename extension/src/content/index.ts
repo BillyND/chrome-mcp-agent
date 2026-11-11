@@ -161,6 +161,66 @@ function scrollElement(ref: string | undefined, dx: number, dy: number) {
   return { scrollTop: Math.round(el.scrollTop), scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
 }
 
+// Chrome sometimes routes a real click to the wrong frame (a same-site frame nested in a
+// cross-site one after its layout shifted). The probe tells the background whether the
+// element actually received the press, so it can fall back to a DOM click.
+let probe: { el: Element; hit: boolean; remove: () => void } | null = null;
+
+function armClickProbe(ref: string) {
+  probe?.remove();
+  const el = resolveRef(ref);
+  const onDown = (e: Event) => {
+    if (probe && containsDeep(el, e.composedPath()[0] as Element)) probe.hit = true;
+  };
+  window.addEventListener('pointerdown', onDown, true);
+  window.addEventListener('mousedown', onDown, true);
+  probe = {
+    el,
+    hit: false,
+    remove: () => {
+      window.removeEventListener('pointerdown', onDown, true);
+      window.removeEventListener('mousedown', onDown, true);
+    },
+  };
+  return true;
+}
+
+function readClickProbe(): boolean {
+  const hit = probe?.hit ?? false;
+  probe?.remove();
+  probe = null;
+  return hit;
+}
+
+function syntheticClick(ref: string, button: string, clickCount: number, modifiers: string[]) {
+  const el = resolveRef(ref) as HTMLElement;
+  const r = el.getBoundingClientRect();
+  const init = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    view: window,
+    clientX: r.left + r.width / 2,
+    clientY: r.top + r.height / 2,
+    button: button === 'right' ? 2 : button === 'middle' ? 1 : 0,
+    ctrlKey: modifiers.includes('Control'),
+    altKey: modifiers.includes('Alt'),
+    shiftKey: modifiers.includes('Shift'),
+    metaKey: modifiers.includes('Meta'),
+  };
+  for (let i = 1; i <= clickCount; i++) {
+    el.dispatchEvent(new PointerEvent('pointerdown', { ...init, detail: i, pointerType: 'mouse', isPrimary: true }));
+    el.dispatchEvent(new MouseEvent('mousedown', { ...init, detail: i }));
+    if (i === 1) el.focus?.({ preventScroll: true });
+    el.dispatchEvent(new PointerEvent('pointerup', { ...init, detail: i, pointerType: 'mouse', isPrimary: true }));
+    el.dispatchEvent(new MouseEvent('mouseup', { ...init, detail: i }));
+    if (init.button === 2) el.dispatchEvent(new MouseEvent('contextmenu', { ...init, detail: i }));
+    else if (init.button === 0) el.dispatchEvent(new MouseEvent('click', { ...init, detail: i }));
+  }
+  if (clickCount === 2 && init.button === 0) el.dispatchEvent(new MouseEvent('dblclick', { ...init, detail: 2 }));
+  return true;
+}
+
 async function handle(req: FrameRequest): Promise<unknown> {
   switch (req.cmd) {
     case 'ping':
@@ -193,6 +253,12 @@ async function handle(req: FrameRequest): Promise<unknown> {
       const s = document.scrollingElement ?? document.documentElement;
       return { scrollY: Math.round(s.scrollTop), scrollHeight: s.scrollHeight, viewport: innerHeight };
     }
+    case 'arm-click-probe':
+      return armClickProbe(req.ref);
+    case 'read-click-probe':
+      return readClickProbe();
+    case 'synthetic-click':
+      return syntheticClick(req.ref, req.button, req.clickCount, req.modifiers);
     case 'overlay':
       await runOverlay(req.action);
       return true;

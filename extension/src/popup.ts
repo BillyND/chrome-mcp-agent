@@ -8,7 +8,7 @@ const STATUS_TEXT: Record<PopupState['status'], string> = {
   connected: 'Đã kết nối',
   offline: 'Ngoại tuyến',
   replaced: 'Đang ở Chrome khác',
-  'not-allowed': 'Chưa được phép',
+  'not-allowed': 'Cần mật khẩu',
 };
 
 const TOOL_LABEL: Record<string, [string, string]> = {
@@ -45,18 +45,20 @@ function timeAgo(t: number): string {
 
 async function render() {
   const s = (await send({ type: 'get-state' })) as PopupState;
-  const signedIn = s.status !== 'signed-out' && !!s.email;
+  const signedIn = !!s.code;
   $('signed-out').hidden = signedIn;
   $('signed-in').hidden = !signedIn;
   if (!signedIn) {
     const err = $('login-error');
     err.hidden = !s.lastError;
     err.textContent = s.lastError ?? '';
+    $('password-field').hidden = !s.needsPassword;
+    const busy = s.status === 'connecting';
+    $<HTMLButtonElement>('login').disabled = busy;
+    $('login').textContent = busy ? 'Đang kết nối…' : 'Kết nối Chrome này';
     return;
   }
-  $('name').textContent = s.name || s.email!.split('@')[0];
-  $('email').textContent = s.email!;
-  $('avatar').textContent = (s.name || s.email!)[0].toUpperCase();
+  $('code').textContent = s.code!;
   const status = $('status');
   status.className = `status ${s.status}`;
   $('status-text').textContent = STATUS_TEXT[s.status];
@@ -97,7 +99,17 @@ async function render() {
 
 if (new URLSearchParams(location.search).has('welcome')) document.body.classList.add('page');
 $('version').textContent = `v${chrome.runtime.getManifest().version}`;
-$('login').addEventListener('click', () => void send({ type: 'login' }));
+$('login').addEventListener('click', () =>
+  void send({ type: 'connect', password: $<HTMLInputElement>('password').value }),
+);
+$<HTMLInputElement>('password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') $('login').click();
+});
+$('copy-code').addEventListener('click', async () => {
+  await navigator.clipboard.writeText($('code').textContent ?? '');
+  $('copy-code').textContent = 'Đã copy ✓';
+  setTimeout(() => ($('copy-code').textContent = 'Copy'), 1500);
+});
 $('logout').addEventListener('click', () => void send({ type: 'logout' }));
 $('stop').addEventListener('click', () => void send({ type: 'stop' }));
 $('resume').addEventListener('click', () => void send({ type: 'resume' }));

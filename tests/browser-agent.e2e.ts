@@ -1,14 +1,15 @@
 // End-to-end: real Chromium with the extension, the gateway under `wrangler dev`,
 // and MCP tool calls exactly as ChatGPT sends them.
 
-import { chromium, expect, test, type BrowserContext } from '@playwright/test';
+import { chromium, expect, request as http, test, type BrowserContext } from '@playwright/test';
+import crypto from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { startFixtures } from './fixtures/server.mjs';
 
 const GATEWAY = 'http://localhost:8787';
-const EMAIL = 'tester@example.com';
+const DEVICE = 'e2e-device';
 const EXT = path.resolve('extension/unpacked');
 
 let ctx: BrowserContext;
@@ -21,7 +22,7 @@ interface ToolResult {
 }
 
 async function call(name: string, args: Record<string, unknown> = {}): Promise<ToolResult & { text: string }> {
-  const res = await fetch(`${GATEWAY}/dev/mcp?email=${encodeURIComponent(EMAIL)}`, {
+  const res = await fetch(`${GATEWAY}/dev/mcp?device=${DEVICE}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
@@ -49,18 +50,18 @@ function refOf(snapshot: string, label: string, role?: string): string {
 
 test.beforeAll(async () => {
   fixtures = await startFixtures();
-  const token = await (await fetch(`${GATEWAY}/dev/token?email=${encodeURIComponent(EMAIL)}`)).text();
+  const token = await (await fetch(`${GATEWAY}/dev/token?device=${DEVICE}`)).text();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cma-e2e-'));
   ctx = await chromium.launchPersistentContext(userDataDir, {
     channel: 'chromium',
     headless: true,
     args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
-    viewport: { width: 1280, height: 900 },
+    viewport: { width: 1280, height: 720 },
   });
   let [sw] = ctx.serviceWorkers();
   sw ??= await ctx.waitForEvent('serviceworker');
   await sw.evaluate(async (t) => {
-    await chrome.storage.local.set({ account: { token: t, email: 'tester@example.com', name: 'Tester' } });
+    await chrome.storage.local.set({ account: { token: t, code: 'E2E00-00000' } });
   }, token);
   const page = ctx.pages()[0] ?? (await ctx.newPage());
   // Playwright auto-dismisses dialogs unless someone listens; leave them to the agent.
@@ -217,7 +218,69 @@ test('reconnects after the connection drops', async () => {
   // Force-drop: "reconnect" closes the socket and opens a new one, like a network blip.
   for (let i = 0; i < 3; i++) await page.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }));
   const r = await call('browser_tabs', { action: 'list' });
-  expect(r.isError).toBeFalsy();
+  expect(r.isError, r.text).toBeFalsy();
   await expect(page.locator('#status-text')).toHaveText('Đã kết nối', { timeout: 15_000 });
   await page.close();
+});
+
+test('ChatGPT connects with the connection code shown in the extension', async () => {
+  const [sw] = ctx.serviceWorkers();
+  const popup = await ctx.newPage();
+  await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
+  // A fresh device: sign the e2e account out, then connect from the popup like a user would.
+  await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'logout' }));
+  await expect(popup.locator('#signed-in')).toBeHidden();
+  await popup.locator('#login').click();
+  await expect(popup.locator('#code')).not.toHaveText('E2E00-00000', { timeout: 15_000 });
+  await expect(popup.locator('#code')).toHaveText(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/, { timeout: 15_000 });
+  await expect(popup.locator('#status-text')).toHaveText('Đã kết nối', { timeout: 15_000 });
+  const code = (await popup.locator('#code').textContent())!;
+  await popup.setViewportSize({ width: 360, height: 600 });
+  await popup.screenshot({ path: 'test-results/popup-code.png' });
+
+  // The ChatGPT side: dynamic registration, consent page with the code, token exchange, tool call.
+  const api = await http.newContext({ baseURL: GATEWAY });
+  const redirectUri = 'https://chatgpt.com/connector_platform_oauth_redirect';
+  const reg = await (await api.post('/oauth/register', {
+    data: { client_name: 'ChatGPT', redirect_uris: [redirectUri], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] },
+  })).json();
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const challenge = crypto.createHash('sha256').update(verifier).digest('base64url');
+  const resource = `${GATEWAY}/mcp`;
+  const query = new URLSearchParams({ response_type: 'code', client_id: reg.client_id, redirect_uri: redirectUri, state: 's1', code_challenge: challenge, code_challenge_method: 'S256', scope: 'browser', resource });
+  const consent = await (await api.get(`/authorize?${query}`)).text();
+  expect(consent).toContain('Mã kết nối');
+  const handle = /name="handle" value="([^"]+)"/.exec(consent)![1];
+
+  const wrong = await api.post('/authorize', { form: { handle, decision: 'approve', code: 'AAAAA-AAAAA', client_name: 'ChatGPT' }, maxRedirects: 0 });
+  expect(wrong.status()).toBe(400);
+  expect(await wrong.text()).toContain('Mã kết nối không đúng');
+
+  const ok = await api.post('/authorize', { form: { handle, decision: 'approve', code: code.toLowerCase().replace('-', ' ') }, maxRedirects: 0 });
+  expect(ok.status()).toBe(302);
+  const back = new URL(ok.headers()['location']);
+  expect(back.origin + back.pathname).toBe(redirectUri);
+  const tokens = await (await api.post('/oauth/token', {
+    form: { grant_type: 'authorization_code', code: back.searchParams.get('code')!, redirect_uri: redirectUri, client_id: reg.client_id, code_verifier: verifier, resource },
+  })).json();
+  expect(tokens.access_token).toBeTruthy();
+
+  const res = await api.post('/mcp', {
+    headers: { authorization: `Bearer ${tokens.access_token}`, accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
+    data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'browser_tabs', arguments: { action: 'list' } } },
+  });
+  const raw = await res.text();
+  expect(raw).toContain('Fixture Home');
+  expect(raw).not.toContain('"isError":true');
+
+  // Disconnecting the Chrome revokes what ChatGPT was given.
+  await popup.locator('#logout').click();
+  await expect(popup.locator('#login')).toBeVisible();
+  const after = await api.post('/mcp', {
+    headers: { authorization: `Bearer ${tokens.access_token}`, accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
+    data: { jsonrpc: '2.0', id: 2, method: 'tools/list' },
+  });
+  expect(after.status()).toBe(401);
+  await api.dispose();
+  await popup.close();
 });

@@ -7,8 +7,8 @@ export const GATEWAY_URL: string = __GATEWAY_URL__;
 
 export interface Account {
   token: string;
-  email: string;
-  name?: string;
+  /** Connection code the user pastes into ChatGPT's consent page. */
+  code: string;
 }
 
 const LOG_LIMIT = 60;
@@ -18,6 +18,8 @@ export const state = {
   lastError: undefined as string | undefined,
   /** Set by the Stop button; every tool call fails until the user resumes. */
   paused: false,
+  /** The gateway asked for the group password on the last connect attempt. */
+  needsPassword: false,
   /** Raised while a tool runs so long operations can bail out between steps. */
   abort: new AbortController(),
 };
@@ -66,9 +68,9 @@ export async function logActivity(entry: ActivityEntry): Promise<void> {
 export async function popupState(): Promise<PopupState> {
   const [account, enabled, { log }] = await Promise.all([getAccount(), isEnabled(), chrome.storage.local.get('log')]);
   return {
-    status: account ? state.status : 'signed-out',
-    email: account?.email,
-    name: account?.name,
+    status: account ? state.status : state.status === 'not-allowed' ? 'not-allowed' : 'signed-out',
+    code: account?.code,
+    needsPassword: state.needsPassword,
     enabled,
     paused: state.paused,
     gateway: GATEWAY_URL,

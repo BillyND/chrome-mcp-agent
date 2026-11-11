@@ -10,7 +10,8 @@
     "test": "vitest run",
     "test:e2e": "node scripts/pack-extension.mjs --dev && playwright test",
     "deploy": "wrangler deploy --config worker/wrangler.jsonc",
-    "setup": "node scripts/setup.mjs"
+    "setup": "node scripts/setup.mjs",
+    "check:live": "node scripts/pack-extension.mjs && node scripts/live-check.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^1.2.4",
