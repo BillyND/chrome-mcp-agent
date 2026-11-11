@@ -114,3 +114,16 @@ export async function frameOffset(tabId: number, frameId: number): Promise<{ x: 
   }
   return { x, y };
 }
+
+/** Sends the same kind of request to every frame of the tab; frames that fail to answer are skipped. */
+export async function callAllFrames<T>(
+  tabId: number,
+  request: (frame: FrameInfo) => FrameRequest,
+  timeoutMs?: number,
+): Promise<Array<{ frame: FrameInfo; value: T }>> {
+  const frames = await readyFrames(tabId);
+  const answers = await Promise.all(
+    frames.map((frame) => frameCall<T>(tabId, frame.frameId, request(frame), timeoutMs).then((value) => ({ frame, value }), () => null)),
+  );
+  return answers.filter((a): a is { frame: FrameInfo; value: T } => a !== null);
+}

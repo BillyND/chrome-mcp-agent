@@ -79,11 +79,19 @@ export async function setAgentTab(tabId: number | undefined): Promise<void> {
   else await chrome.storage.session.set({ agentTabId: tabId });
 }
 
-export async function logActivity(entry: ActivityEntry): Promise<void> {
-  const { log } = await chrome.storage.local.get('log');
-  const next = [entry, ...((log as ActivityEntry[] | undefined) ?? [])].slice(0, LOG_LIMIT);
-  await chrome.storage.local.set({ log: next });
-  notify();
+// Writes are chained so parallel tool calls never overwrite each other's entries.
+let logWrite: Promise<void> = Promise.resolve();
+
+export function logActivity(entry: ActivityEntry): Promise<void> {
+  logWrite = logWrite
+    .then(async () => {
+      const { log } = await chrome.storage.local.get('log');
+      const next = [entry, ...((log as ActivityEntry[] | undefined) ?? [])].slice(0, LOG_LIMIT);
+      await chrome.storage.local.set({ log: next });
+      notify();
+    })
+    .catch(() => {});
+  return logWrite;
 }
 
 export async function popupState(): Promise<PopupState> {

@@ -33,6 +33,11 @@ export type FrameRequest =
   | { cmd: 'set-files'; ref: string; files: Array<{ name: string; mimeType: string; base64: string }> }
   | { cmd: 'get-text'; ref?: string }
   | { cmd: 'has-text'; text: string }
+  | { cmd: 'has-selector'; selector: string; visible: boolean }
+  | { cmd: 'find-text'; text: string; caseSensitive: boolean; max: number; prefix: string }
+  | { cmd: 'extract'; what: string[]; ref?: string; max: number; prefix: string; top: boolean }
+  | { cmd: 'select-text'; ref?: string; text?: string }
+  | { cmd: 'get-selection' }
   | { cmd: 'mark-for-eval'; ref: string; nonce: string }
   | { cmd: 'scroll-element'; ref?: string; dx: number; dy: number }
   | { cmd: 'scroll-info' }

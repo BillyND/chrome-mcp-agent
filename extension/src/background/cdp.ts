@@ -32,6 +32,11 @@ interface TabSession {
   dialog?: DialogInfo;
   idleTimer?: ReturnType<typeof setTimeout>;
   dragData?: unknown;
+  /** Request ids still loading, for "network idle" waits. */
+  inflight: Set<string>;
+  lastNetworkAt: number;
+  /** Emulation overrides vanish on detach, so a session that carries any stays attached. */
+  pinned?: boolean;
 }
 
 const sessions = new Map<number, TabSession>();
@@ -45,7 +50,28 @@ function touch(tabId: number) {
   const s = sessions.get(tabId);
   if (!s) return;
   clearTimeout(s.idleTimer);
+  if (s.pinned) return;
   s.idleTimer = setTimeout(() => void detach(tabId), IDLE_DETACH_MS);
+}
+
+/** Keeps (or stops keeping) the debugger attached regardless of idleness. */
+export function pinSession(tabId: number, pinned: boolean) {
+  const s = sessions.get(tabId);
+  if (!s) return;
+  s.pinned = pinned;
+  touch(tabId);
+}
+
+/** Resolves once the tab has had no request in flight for `quietMs`, or false when `timeoutMs` passes first. */
+export async function waitNetworkIdle(tabId: number, quietMs: number, timeoutMs: number, shouldStop: () => void): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    shouldStop();
+    const s = sessions.get(tabId);
+    if (!s || (s.inflight.size === 0 && Date.now() - s.lastNetworkAt >= quietMs)) return true;
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  return false;
 }
 
 export async function attach(tabId: number): Promise<void> {
@@ -68,11 +94,13 @@ export async function attach(tabId: number): Promise<void> {
           );
         }
       }
-      sessions.set(tabId, { console: [], network: new Map() });
+      sessions.set(tabId, { console: [], network: new Map(), inflight: new Set(), lastNetworkAt: Date.now() });
       await Promise.all([
         send(tabId, 'Page.enable'),
         send(tabId, 'Runtime.enable'),
         send(tabId, 'Network.enable', { maxTotalBufferSize: 0, maxResourceBufferSize: 0 }).catch(() => {}),
+        // Background tabs behave as focused, so input, rendering and screenshots work without bringing them to the front.
+        send(tabId, 'Emulation.setFocusEmulationEnabled', { enabled: true }).catch(() => {}),
       ]);
       touch(tabId);
     })().finally(() => attaching.delete(tabId));
@@ -143,6 +171,8 @@ export function installCdpListeners() {
         break;
       }
       case 'Network.requestWillBeSent':
+        if (params.type !== 'EventSource' && params.type !== 'Ping') s.inflight.add(params.requestId);
+        s.lastNetworkAt = Date.now();
         s.network.set(params.requestId, {
           id: params.requestId,
           method: params.request.method,
@@ -154,13 +184,25 @@ export function installCdpListeners() {
       case 'Network.responseReceived': {
         const e = s.network.get(params.requestId);
         if (e) e.status = params.response.status;
+        // Once headers are in, the request counts as settled for idle detection (bodies may stream on).
+        s.inflight.delete(params.requestId);
+        s.lastNetworkAt = Date.now();
         break;
       }
       case 'Network.loadingFailed': {
         const e = s.network.get(params.requestId);
         if (e) e.failed = params.errorText;
+        s.inflight.delete(params.requestId);
+        s.lastNetworkAt = Date.now();
         break;
       }
+      case 'Network.loadingFinished':
+        s.inflight.delete(params.requestId);
+        s.lastNetworkAt = Date.now();
+        break;
+      case 'Page.frameNavigated':
+        if (!params.frame?.parentId) s.inflight.clear();
+        break;
       case 'Page.javascriptDialogOpening':
         s.dialog = { type: params.type, message: params.message, defaultPrompt: params.defaultPrompt };
         break;

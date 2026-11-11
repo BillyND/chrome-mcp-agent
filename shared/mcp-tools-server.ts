@@ -10,11 +10,16 @@ import { TOOLS } from './tools';
 export type ToolCaller = (tool: string, args: Record<string, unknown>, timeoutMs: number, safeToRepeat: boolean) => Promise<CallResult>;
 
 export const INSTRUCTIONS = `Helmsman controls the user's own Google Chrome (their real tabs and logged-in accounts).
-Workflow: browser_tabs (list/select or open) -> browser_snapshot -> act with refs from the latest snapshot -> snapshot again to verify.
+Workflow: browser_tabs (list, or "new" for a tab of your own) -> browser_snapshot -> act with refs from the latest snapshot -> snapshot again to verify.
 - Refs look like "e12" (top page) or "f3e7" (inside an iframe); iframes, including cross-origin ones, are part of the snapshot and work like normal elements.
 - Every action returns a fresh short page summary; take a new snapshot after navigation or big page changes because refs from older snapshots expire.
-- Prefer browser_snapshot over screenshots; use browser_screenshot for visual checks (charts, captchas, layouts).
-- Ask the user before purchases, sending messages/emails, deleting data or changing account settings unless they clearly asked for it.
+- Prefer browser_snapshot over screenshots; use browser_screenshot for visual checks (charts, captchas, layouts). Use browser_find for a quick text lookup and browser_extract for links, tables, forms and metadata.
+Several tabs and several agents:
+- Several AI agents can use the same Chrome at once. Each has its own default tab and its own Chrome tab group (titled with the agent's name and a colour); never touch a tab another agent is using unless the user asked.
+- Calls that omit tabId act on your default tab. Pass tabId (from browser_tabs or a result's "Tab N" line) to work in a specific tab; browser_tabs "new" opens another tab of your own in the background.
+- Calls on different tabs run in parallel, so to go faster open several tabs and send independent calls at the same time; calls on the same tab run one after another in the order sent.
+- Every result says which tab it acted on. Tabs are not brought to the front: the page does not need to be visible for clicks, typing and screenshots to work.
+- Ask the user before purchases, sending messages/emails, deleting data or changing account settings unless they clearly asked for it. Cookies and history are the user's private data: read or change them only when the task needs it.
 - If a tool says Chrome is not connected, tell the user to open Chrome and click the Helmsman icon.`;
 
 /** Pass the runtime's JSON Schema validator (Workers cannot use the default one); schemas are compiled once. */

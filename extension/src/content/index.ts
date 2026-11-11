@@ -5,6 +5,7 @@
 import type { FrameRequest, FrameResponse, PrepareResult, RuntimeMessage } from '../messages';
 import { clean, describe, isEditable, shadowRootOf } from './dom';
 import { isOverlay, runOverlay } from './overlay';
+import { extractPage, findText, hasSelector, readSelection, selectText } from './page-data';
 import { refFor, resolveRef } from './refs';
 import { buildSnapshot } from './snapshot';
 
@@ -281,6 +282,16 @@ async function handle(req: FrameRequest): Promise<unknown> {
       return readText(req.ref);
     case 'has-text':
       return (document.body?.innerText ?? '').toLowerCase().includes(req.text.toLowerCase());
+    case 'has-selector':
+      return hasSelector(req.selector, req.visible);
+    case 'find-text':
+      return findText(req.text, req.caseSensitive, req.max, req.prefix);
+    case 'extract':
+      return extractPage(req.what, req.ref, req.max, req.prefix, req.top);
+    case 'select-text':
+      return selectText(req.ref, req.text);
+    case 'get-selection':
+      return readSelection();
     case 'mark-for-eval': {
       const el = resolveRef(req.ref);
       el.setAttribute('data-cma-eval', req.nonce);

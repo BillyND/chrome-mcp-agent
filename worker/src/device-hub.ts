@@ -72,8 +72,8 @@ export class DeviceHub extends DurableObject<Env> {
   }
 
   /** RPC from the MCP endpoint: run one tool in the user's Chrome. */
-  call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false): Promise<CallResult> {
-    return this.relay.call(tool, args, timeoutMs, readOnly);
+  call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false, agent?: string): Promise<CallResult> {
+    return this.relay.call(tool, args, timeoutMs, readOnly, agent);
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {

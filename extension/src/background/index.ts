@@ -18,15 +18,13 @@ installCdpListeners();
 
 // Calls arrive from the cloud and the local server alike and run concurrently;
 // runTool serialises what must not interleave (mouse and keyboard input) per agent.
-// Until runTool takes the agent id itself, the extra argument is passed through a cast.
-const runToolForAgent = runTool as (name: string, args: Record<string, unknown>, agent?: string) => ReturnType<typeof runTool>;
 
 onToolCall(async (msg, endpoint) => {
   await pausedLoaded;
   const started = Date.now();
   const result = state.paused
     ? { content: [{ type: 'text' as const, text: 'The user pressed Stop in Chrome. Do not continue; ask the user what to do.' }], isError: true }
-    : await runToolForAgent(msg.tool, msg.args, msg.agent);
+    : await runTool(msg.tool, msg.args, msg.agent);
   endpoint.send({ type: 'result', id: msg.id, content: result.content, isError: result.isError });
   const first = result.content.find((c) => c.type === 'text');
   await logActivity({

@@ -17,4 +17,6 @@ export interface Env {
 
 export interface AuthProps extends Record<string, unknown> {
   device: string;
+  /** Calling AI client: `<client name>#<OAuth client id>`. Missing on grants issued before agents were tracked. */
+  agent?: string;
 }

@@ -5,8 +5,9 @@ import type { ToolResult } from './mcp-stdio-client';
 let rpcId = 0;
 
 /** Calls a tool through the cloud gateway's dev MCP endpoint, exactly as ChatGPT would. */
-export async function cloudCall(gateway: string, device: string, name: string, args: Record<string, unknown> = {}): Promise<ToolResult> {
-  const res = await fetch(`${gateway}/dev/mcp?device=${device}`, {
+export async function cloudCall(gateway: string, device: string, name: string, args: Record<string, unknown> = {}, agent?: string): Promise<ToolResult> {
+  const query = new URLSearchParams({ device, ...(agent ? { agent } : {}) });
+  const res = await fetch(`${gateway}/dev/mcp?${query}`, {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
