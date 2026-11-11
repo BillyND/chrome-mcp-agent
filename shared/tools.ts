@@ -518,6 +518,21 @@ export const TOOLS: ToolDef[] = [
     timeoutMs: 20_000,
   },
   {
+    name: 'browser_request_user',
+    title: 'Ask the user to take over',
+    description:
+      'Hand the tab to the user for something only they should do: logging in, solving a CAPTCHA, entering payment or identity details, or any step you are not allowed to do. It brings the tab to the front, shows "Agent needs you" with a Done button, and waits until the user presses Done (or declines, or 10 minutes pass). Never type passwords, card numbers or CAPTCHA answers yourself; call this instead, then take a new snapshot.',
+    inputSchema: obj(
+      {
+        reason: { type: 'string', description: 'One short sentence telling the user what to do, e.g. "Log in to your account, then press Done."' },
+        tabId,
+      },
+      ['reason'],
+    ),
+    readOnly: false,
+    timeoutMs: 600_000,
+  },
+  {
     name: 'browser_secrets_list',
     title: 'Secret names',
     description:
@@ -570,6 +585,7 @@ export const CORE_TOOL_NAMES: readonly string[] = [
   'browser_find',
   'browser_wait_for',
   'browser_secrets_list',
+  'browser_request_user',
 ];
 
 /** Unknown or missing values mean "full". */

@@ -2,9 +2,18 @@
 // and saved workflows, all through MCP calls on a real Chromium with the extension.
 
 import { expect, test, type Page } from '@playwright/test';
-import { cloudCall } from './fixtures/helpers';
+import { cloudCall, unwrapUntrusted } from './fixtures/helpers';
 import { StdioMcpClient } from './fixtures/mcp-stdio-client';
-import { call, DEVICE, GATEWAY, refOf, SITE_A, startHarness, stopHarness, type Harness } from './support/harness';
+import { call as sealedCall, DEVICE, GATEWAY, refOf, SITE_A, startHarness, stopHarness, type Harness } from './support/harness';
+
+/** Tool calls as seen without the untrusted-content envelope (covered by safety.e2e.ts): these tests are about the payload. */
+const call: typeof sealedCall = async (...args) => {
+  const r = await sealedCall(...args);
+  return { ...r, text: unwrapUntrusted(r.text) };
+};
+
+/** Length of what the tool returned, not counting the untrusted-content envelope every result is sealed in. */
+const len = (text: string) => unwrapUntrusted(text).length;
 
 let h: Harness;
 let page: Page;
@@ -56,7 +65,7 @@ test.describe('snapshot diffing', () => {
     expect(click.text).toMatch(/\+0 −0 ~\d+ lines; unchanged: \d+/);
     expect(click.text).toContain('~ - text: Đếm: 1');
     expect(click.text).not.toContain('heading "Trang thử nghiệm"');
-    expect(click.text.length).toBeLessThan(full.text.length * 0.35);
+    expect(len(click.text)).toBeLessThan(len(full.text) * 0.35);
 
     // Refs from the old snapshot are still valid, and each further action diffs against the latest state.
     const again = await call('browser_click', { ref: refOf(full.text, 'Tăng', 'button') });
@@ -69,7 +78,7 @@ test.describe('snapshot diffing', () => {
     const full = await snapshotOf();
     const same = await snapshotOf({ mode: 'diff' });
     expect(same.text).toContain('Snapshot diff (no changes');
-    expect(same.text.length).toBeLessThan(full.text.length / 4);
+    expect(len(same.text)).toBeLessThan(len(full.text) / 4);
     const forced = await snapshotOf({ mode: 'full' });
     expect(forced.text).toContain('heading "Trang thử nghiệm"');
 
@@ -83,7 +92,7 @@ test.describe('snapshot diffing', () => {
     const changed = await snapshotOf({ mode: 'diff' });
     expect(changed.text).toContain('+ - button "Nút mới"');
     expect(changed.text).toMatch(/^- - text: Đếm/m);
-    expect(changed.text.length).toBeLessThan(full.text.length / 3);
+    expect(len(changed.text)).toBeLessThan(len(full.text) / 3);
   });
 
   test('navigation starts over with a full snapshot, which is then the new baseline', async () => {
@@ -130,7 +139,7 @@ test.describe('scoped and compact reads', () => {
     expect(frame.text).toContain('Nút lồng'); // the nested frame inside it
     expect(frame.text).not.toContain('Trang thử nghiệm');
     expect(frame.text).not.toContain('Tăng');
-    expect(frame.text.length).toBeLessThan(full.text.length);
+    expect(len(frame.text)).toBeLessThan(len(full.text));
 
     // The scoped view is its own baseline: a diff of it is a diff of the subtree.
     const frameDiff = await snapshotOf({ ref: frameRef, mode: 'diff' });
@@ -154,7 +163,7 @@ test.describe('scoped and compact reads', () => {
     expect(compact.text).toContain('Email trong iframe'); // frames are still entered
     expect(compact.text).not.toContain('text: Đếm');
     expect(compact.text).not.toContain('text: Đáy trang');
-    expect(compact.text.length).toBeLessThan(full.text.length); // the fixture is mostly controls, so the saving is modest here
+    expect(len(compact.text)).toBeLessThan(len(full.text)); // the fixture is mostly controls, so the saving is modest here
     expect(compact.text.split('\n').length).toBeLessThan(full.text.split('\n').length);
     // Refs in the compact view work.
     const r = await call('browser_click', { ref: refOf(compact.text, 'Tăng', 'button') });
@@ -167,7 +176,7 @@ test.describe('scoped and compact reads', () => {
     const shallow = await snapshotOf({ depth: 0 });
     expect(shallow.text).toContain('deeper content hidden by depth=0');
     expect(shallow.text).not.toContain('Email trong iframe');
-    expect(shallow.text.length).toBeLessThan(full.text.length);
+    expect(len(shallow.text)).toBeLessThan(len(full.text));
     const deeper = await snapshotOf({ depth: 8 });
     expect(deeper.text).toContain('Email trong iframe');
   });
@@ -177,22 +186,23 @@ test.describe('output budget', () => {
   test('a cut snapshot ends with a note and browser_read_more pages the rest', async () => {
     await home();
     const whole = await snapshotOf();
-    const body = whole.text.split('Page snapshot:\n')[1];
+    const body = unwrapUntrusted(whole.text).split('Page snapshot:\n')[1];
     const cut = await snapshotOf({ maxChars: 1000 });
-    expect(cut.text.length).toBeLessThanOrEqual(1000);
+    expect(len(cut.text)).toBeLessThanOrEqual(1000);
     const note = /browser_read_more \{"handle":"(h\d+)","offset":(\d+)\}/.exec(cut.text);
     expect(note, cut.text).toBeTruthy();
     const handle = note![1];
     let offset = Number(note![2]);
-    let rebuilt = cut.text.split('Page snapshot:\n')[1].split('\n… [truncated')[0];
+    let rebuilt = unwrapUntrusted(cut.text).split('Page snapshot:\n')[1].split('\n… [truncated')[0];
 
     for (let i = 0; i < 40 && offset < body.length; i++) {
       const more = await call('browser_read_more', { handle, offset, maxChars: 1000 });
       expect(more.isError, more.text).toBeFalsy();
-      expect(more.text.length).toBeLessThanOrEqual(1000);
-      const range = /^Characters (\d+)-(\d+) of (\d+)/.exec(more.text)!;
+      expect(len(more.text)).toBeLessThanOrEqual(1000);
+      const chunk = unwrapUntrusted(more.text);
+      const range = /^Characters (\d+)-(\d+) of (\d+)/.exec(chunk)!;
       expect(Number(range[1])).toBe(offset);
-      rebuilt += more.text.slice(more.text.indexOf('\n') + 1).split('\n… [truncated')[0].replace(/\n\[end of text\]$/, '');
+      rebuilt += chunk.slice(chunk.indexOf('\n') + 1).split('\n… [truncated')[0].replace(/\n\[end of text\]$/, '');
       offset = Number(range[2]);
     }
     // Same text as the uncut snapshot, modulo the newline that separated the chunks.
@@ -202,7 +212,7 @@ test.describe('output budget', () => {
   test('every tool output stays within the global budget, and the handle keeps the rest', async () => {
     await home();
     const r = await call('browser_evaluate', { script: 'return "x".repeat(150000)' });
-    expect(r.text.length).toBeLessThanOrEqual(40_000);
+    expect(len(r.text)).toBeLessThanOrEqual(40_000);
     expect(r.text).toContain('browser_read_more');
     const handle = /"handle":"(h\d+)"/.exec(r.text)![1];
     const tail = await call('browser_read_more', { handle, offset: 140_000 });
@@ -210,7 +220,7 @@ test.describe('output budget', () => {
     expect(tail.text).toContain('[end of text]');
 
     const text = await call('browser_get_text', { maxChars: 1500 });
-    expect(text.text.length).toBeLessThanOrEqual(1500);
+    expect(len(text.text)).toBeLessThanOrEqual(1500);
   });
 
   test('unknown handles and other agents cannot read a handle', async () => {

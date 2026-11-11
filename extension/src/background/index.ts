@@ -4,7 +4,13 @@ import type { RuntimeMessage } from '../messages';
 import { detachAll, installCdpListeners } from './cdp';
 import { cloud, local, onToolCall, setLocalMode } from './connection';
 import { handleFrameIdentified } from './frames';
-import { GATEWAY_URL, getAccount, getAgentTab, logActivity, notify, pausedLoaded, popupState, setAccount, setPaused, setStatus, state } from './state';
+import type { ToolContent } from '../../../shared/protocol';
+import { answer, pendingPrompts } from './policy/approvals';
+import { OPEN_TAG } from './policy/untrusted';
+import { normalizeRuleHost } from './policy/site-rules';
+import { setRule, sitesView } from './policy/store';
+import { GATEWAY_URL, clearActivity, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setPaused, setStatus, state } from './state';
+import { agentLabel, DEFAULT_AGENT } from './tools/agent-id';
 import { runTool, showAgentBar } from './tools';
 
 const KEEPALIVE_ALARM = 'keepalive';
@@ -20,20 +26,26 @@ installCdpListeners();
 // runTool serialises what must not interleave (mouse and keyboard input) per agent.
 
 onToolCall(async (msg, endpoint) => {
-  await pausedLoaded;
   const started = Date.now();
-  const result = state.paused
-    ? { content: [{ type: 'text' as const, text: 'The user pressed Stop in Chrome. Do not continue; ask the user what to do.' }], isError: true }
-    : await runTool(msg.tool, msg.args, msg.agent);
+  const result = await runTool(msg.tool, msg.args, msg.agent);
   endpoint.send({ type: 'result', id: msg.id, content: result.content, isError: result.isError });
-  const first = result.content.find((c) => c.type === 'text');
   await logActivity({
     t: started,
     tool: msg.tool,
-    summary: first?.type === 'text' ? first.text.split('\n')[0].slice(0, 140) : 'screenshot',
+    summary: summaryOf(result.content),
     ok: !result.isError,
+    agent: agentLabel(msg.agent ?? DEFAULT_AGENT),
+    ...result.audit,
   });
 });
+
+/** The first line of what the tool returned (inside the envelope when there is one), for the activity log. */
+function summaryOf(content: ToolContent[]): string {
+  const texts = content.flatMap((c) => (c.type === 'text' ? [c.text] : []));
+  const wrapped = texts.find((t) => t.includes(OPEN_TAG));
+  const body = wrapped ? wrapped.slice(wrapped.indexOf(OPEN_TAG) + OPEN_TAG.length) : (texts[0] ?? '');
+  return (body.split('\n').find((l) => l.trim()) ?? 'screenshot').slice(0, 140);
+}
 
 /** Registers this Chrome with the gateway and gets its connection code. */
 async function register(password = ''): Promise<void> {
@@ -83,8 +95,23 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       handleFrameIdentified(msg);
       return false;
     case 'get-state':
-      void popupState().then(sendResponse);
+      void Promise.all([popupState(), sitesView()]).then(([s, sites]) => sendResponse({ ...s, sites, pending: pendingPrompts() }));
       return true;
+    case 'approval-decision':
+      // Page prompts and the popup answer through here; the page script runs in an isolated world, so a web page cannot.
+      answer(msg.id, msg.choice);
+      return false;
+    case 'set-site-rule': {
+      const host = normalizeRuleHost(msg.host);
+      if (host) void setRule(host, msg.action).then(notify);
+      return false;
+    }
+    case 'clear-log':
+      void clearActivity();
+      return false;
+    case 'open-audit':
+      void chrome.tabs.create({ url: chrome.runtime.getURL('audit.html') });
+      return false;
     case 'connect':
       void register(msg.password);
       return false;

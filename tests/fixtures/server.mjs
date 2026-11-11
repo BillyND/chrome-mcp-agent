@@ -2,6 +2,7 @@
 // http://127.0.0.1:<that port + 1> (cross-origin iframe), each serving the same pages.
 
 import http from 'node:http';
+import { safetyPages } from './safety-pages.mjs';
 
 export const FIXTURE_PORT = Number(process.env.E2E_FIXTURE_PORT ?? 4100);
 const SITE_A = `http://localhost:${FIXTURE_PORT}`;
@@ -100,6 +101,8 @@ setTimeout(()=>fetch('/slow.json').then(r=>r.text()).then(()=>{window.__done=tru
   '/frame-data.html': `<!doctype html><meta charset="utf-8"><body><p>Mã khuyến mãi ẩn trong iframe</p><a href="/x">Liên kết trong khung</a></body>`,
   '/nested.html': `<!doctype html><meta charset="utf-8"><body><button onclick="this.nextElementSibling.textContent='Lồng OK'">Nút lồng</button><span></span></body>`,
 };
+
+Object.assign(pages, safetyPages(SITE_B));
 
 function serve(port, host) {
   return new Promise((resolve) => {

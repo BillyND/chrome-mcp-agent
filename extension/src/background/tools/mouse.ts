@@ -2,6 +2,7 @@
 
 import { send, sessionOf } from '../cdp';
 import { frameCall } from '../frames';
+import { guardClick, guardPoint } from '../policy/guard';
 import { clickAt, clickTarget, modifierMask, mouse, withClickProbe } from './input';
 import { elementBox, locate } from './locate';
 import { afterAction } from './page-summary';
@@ -23,6 +24,7 @@ export const mouseTools = {
   browser_click: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, `Bấm ${args.element ?? args.ref}`);
     const t = await locate(tab.id!, args.ref);
+    await guardClick(ctx, tab.id!, args.ref);
     await glide(tab.id!, t.x, t.y);
     checkAbort(ctx);
     const fallback = await clickTarget(tab.id!, t, { button: args.button, clickCount: args.doubleClick ? 2 : 1, modifiers: args.modifiers });
@@ -55,6 +57,10 @@ export const mouseTools = {
       throw new ToolError(`Point (${x}, ${y}) is outside the visible viewport (${Math.round(vp.clientWidth)}x${Math.round(vp.clientHeight)}). Scroll it into view first.`);
     }
     if (action === 'drag' && (args.toX === undefined || args.toY === undefined)) throw new ToolError('toX and toY are required for drag.');
+    if (action === 'click' || action === 'double_click' || action === 'right_click') {
+      if (args.ref) await guardClick(ctx, tabId, args.ref);
+      else await guardPoint(ctx, tabId, x, y);
+    }
     await glide(tabId, x, y);
     checkAbort(ctx);
     const modifiers = args.modifiers as string[] | undefined;

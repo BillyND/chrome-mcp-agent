@@ -3,7 +3,7 @@
 // ChatGPT path (registration, consent with the connection code, token, MCP
 // tool calls) drives a page with cross-origin iframes.
 //
-//   node scripts/pack-extension.mjs && node scripts/live-check.mjs
+//   node scripts/pack-extension.mjs && node --experimental-strip-types scripts/live-check.mjs
 
 import { chromium, request as http } from '@playwright/test';
 import crypto from 'node:crypto';
@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startFixtures } from '../tests/fixtures/server.mjs';
+import { autoApprove } from '../tests/support/prompts.ts';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const gateway = /"PUBLIC_URL"\s*:\s*"([^"]+)"/.exec(fs.readFileSync(path.join(root, 'worker/wrangler.jsonc'), 'utf8'))[1];
@@ -29,8 +30,11 @@ const ctx = await chromium.launchPersistentContext(fs.mkdtempSync(path.join(os.t
 });
 const api = await http.newContext({ baseURL: gateway });
 let popup;
+let stopApprover = () => {};
 try {
   const sw = ctx.serviceWorkers()[0] ?? (await ctx.waitForEvent('serviceworker'));
+  // Stand-in user: approves the on-page confirmation that sensitive clicks ("Gửi") now require.
+  stopApprover = autoApprove(ctx, sw);
   const page = ctx.pages()[0] ?? (await ctx.newPage());
   await page.goto(fixtures.url);
 
@@ -80,11 +84,11 @@ try {
   const snap = await call('browser_snapshot');
   step(`snapshot over Cloudflare (${snap.length} chars, includes cross-origin frame: ${snap.includes('Form trong iframe')})`);
   let r = await call('browser_type', { ref: refOf(snap, 'Email trong iframe'), text: 'live@cloudflare.vn' });
-  r = await call('browser_click', { ref: refOf(r, 'Gửi iframe') });
-  if (!r.includes('Đã gửi: live@cloudflare.vn')) fail('cross-origin iframe form did not submit');
+  r = await call('browser_click', { ref: refOf(snap, 'Gửi iframe') });
+  if (!(await call('browser_get_text')).includes('Đã gửi: live@cloudflare.vn')) fail('cross-origin iframe form did not submit');
   step('typed and clicked inside the cross-origin iframe through the live gateway');
-  r = await call('browser_click', { ref: refOf(r, 'Nút lồng') });
-  if (!r.includes('Lồng OK')) fail(`nested iframe click failed:\n${r}`);
+  r = await call('browser_click', { ref: refOf(snap, 'Nút lồng') });
+  if (!(await call('browser_get_text')).includes('Lồng OK')) fail('nested iframe click failed');
   step('clicked inside the nested iframe');
   const shot = await api.post('/mcp', {
     headers: { authorization: `Bearer ${tokens.access_token}`, accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2025-06-18' },
@@ -97,6 +101,7 @@ try {
   step('disconnected the test Chrome (its code is retired)');
   console.log('\nLIVE CHECK PASSED');
 } finally {
+  stopApprover();
   await api.dispose();
   await ctx.close();
   await fixtures.close();

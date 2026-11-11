@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { cloudCall, refOf } from '../fixtures/helpers';
 import { FIXTURE_PORT, startFixtures } from '../fixtures/server.mjs';
+import { autoApprove } from './prompts';
 
 export const SITE_A = `http://localhost:${FIXTURE_PORT}`;
 
@@ -30,9 +31,15 @@ export interface Harness {
   ctx: BrowserContext;
   sw: Worker;
   fixtures: { url: string; close: () => Promise<unknown> };
+  /** Stops the stand-in user that approves confirmations (see startHarness). */
+  stopApprover: () => void;
 }
 
-export async function startHarness(): Promise<Harness> {
+/**
+ * Starts Chromium with the extension. By default a stand-in user clicks the approving button of every
+ * on-page prompt (sensitive actions such as "Gửi" must be approved); pass `approve: false` to answer prompts in the test.
+ */
+export async function startHarness({ approve = true }: { approve?: boolean } = {}): Promise<Harness> {
   const fixtures = await startFixtures();
   const token = await (await fetch(`${GATEWAY}/dev/token?device=${DEVICE}`)).text();
   const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cma-e2e-'));
@@ -56,10 +63,11 @@ export async function startHarness(): Promise<Harness> {
   // Reconnect with the stored account (the popup's "reconnect" message does the same).
   await sw.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {}));
   await expect.poll(async () => (await call('browser_tabs', { action: 'list' })).isError ?? false, { timeout: 30_000 }).toBe(false);
-  return { ctx, sw, fixtures };
+  return { ctx, sw, fixtures, stopApprover: approve ? autoApprove(ctx, sw) : () => {} };
 }
 
 export async function stopHarness(h?: Harness) {
+  h?.stopApprover();
   await h?.ctx.close();
   await h?.fixtures.close();
 }

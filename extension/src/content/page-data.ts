@@ -3,6 +3,7 @@
 
 import { accessibleName, children, clean, isInteractive, isVisible, roleOf, shadowRootOf } from './dom';
 import { refFor, resolveRef } from './refs';
+import { isConcealedText } from './visibility';
 
 const SKIP_TAGS = new Set(['script', 'style', 'noscript', 'template', 'head']);
 
@@ -16,7 +17,7 @@ export interface FindHit {
 /** Visible text nodes under `root`, shadow DOM included. */
 function* textNodes(root: Node): Generator<Text> {
   if (root.nodeType === Node.TEXT_NODE) {
-    yield root as Text;
+    if (!isConcealedText(root.parentElement)) yield root as Text;
     return;
   }
   if (root instanceof Element && (SKIP_TAGS.has(root.localName) || !isVisible(root))) return;

@@ -1,6 +1,7 @@
 // Form tools: fill many fields at once, choose <select> options.
 
 import { frameCall } from '../frames';
+import { guardTyping } from '../policy/guard';
 import { resolveSecrets } from '../secrets/tools';
 import { clickTarget, fillTarget } from './input';
 import { locate } from './locate';
@@ -29,7 +30,9 @@ export const formTools = {
         done.push(`${t.prep.label} → ${want ? 'checked' : 'unchecked'}`);
       } else {
         const str = Array.isArray(value) ? value.join(', ') : String(value); // what results may show: {{secret:NAME}} stays a placeholder
-        await fillTarget(tabId, t, await resolveSecrets(str), ctx);
+        const typed = await resolveSecrets(str);
+        await guardTyping(ctx, tabId, field.ref, typed);
+        await fillTarget(tabId, t, typed, ctx);
         done.push(`${t.prep.label} = ${JSON.stringify(str.slice(0, 60))}`);
       }
       await sleep(60);

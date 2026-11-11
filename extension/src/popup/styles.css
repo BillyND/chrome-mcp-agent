@@ -86,7 +86,10 @@
     font-size: 15px;
   }
   body {
-    width: 360px;
     margin: 0;
+  }
+  /* Fixed width only for the toolbar popup; extension pages (audit) use the full window. */
+  body.popup {
+    width: 360px;
   }
 }

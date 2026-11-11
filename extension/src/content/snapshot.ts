@@ -8,6 +8,7 @@
 
 import { accessibleName, children, clean, hasSize, isEditable, isInteractive, isVisible, roleOf } from './dom';
 import { pruneRefs, refFor, resolveRef } from './refs';
+import { isConcealedText } from './visibility';
 
 export const FRAME_PLACEHOLDER = (ref: string) => `⟦frame:${ref}⟧`;
 
@@ -103,6 +104,7 @@ export function buildSnapshot(prefix: string, opts: SnapshotOptions = {}): strin
       return;
     }
     if (node.nodeType === Node.TEXT_NODE) {
+      if (isConcealedText(node.parentElement)) return;
       pushText(depth, node.textContent ?? '');
       return;
     }

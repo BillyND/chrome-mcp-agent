@@ -13,7 +13,8 @@ export interface Account {
   code: string;
 }
 
-const LOG_LIMIT = 60;
+/** The log doubles as the audit trail; the popup shows only the latest few. */
+const LOG_LIMIT = 2000;
 
 export const state = {
   status: 'signed-out' as ConnectionStatus,
@@ -94,7 +95,13 @@ export function logActivity(entry: ActivityEntry): Promise<void> {
   return logWrite;
 }
 
-export async function popupState(): Promise<PopupState> {
+/** Empties the log (the audit page's "Clear"), in order with pending writes. */
+export function clearActivity(): Promise<void> {
+  logWrite = logWrite.then(() => chrome.storage.local.remove('log')).then(notify, () => {});
+  return logWrite;
+}
+
+export async function popupState(): Promise<Omit<PopupState, 'sites' | 'pending'>> {
   await Promise.all([pausedLoaded, localLoaded]);
   const [account, { log }] = await Promise.all([getAccount(), chrome.storage.local.get('log')]);
   return {
@@ -109,8 +116,20 @@ export async function popupState(): Promise<PopupState> {
   };
 }
 
-/** Toolbar badge: clear while any relay is connected, otherwise a hint about the cloud account. */
+/** Confirmations waiting for the user: the toolbar badge asks for attention while there are any. */
+export function setPendingCount(count: number) {
+  pendingCount = count;
+  updateBadge();
+}
+let pendingCount = 0;
+
+/** Toolbar badge: "?" while a question waits for the user, else clear while any relay is connected, otherwise a hint about the cloud account. */
 function updateBadge() {
+  if (pendingCount > 0) {
+    void chrome.action.setBadgeText({ text: '?' });
+    void chrome.action.setBadgeBackgroundColor({ color: '#d97706' });
+    return;
+  }
   const connected = state.status === 'connected' || state.local.status === 'connected';
   const signedOut = state.status === 'signed-out' && !state.local.enabled;
   void chrome.action.setBadgeText({ text: connected ? '' : signedOut ? '!' : '…' });

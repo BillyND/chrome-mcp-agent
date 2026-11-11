@@ -4,11 +4,13 @@
 
 import type { FrameRequest, FrameResponse, PrepareResult, RuntimeMessage } from '../messages';
 import { clean, describe, isEditable, shadowRootOf } from './dom';
+import { clickableAt, describeTarget, detectGates, focusedElement } from './facts';
 import { describeRef, findByLocator } from './locator-dom';
 import { isOverlay, runOverlay } from './overlay';
 import { extractPage, findText, hasSelector, readSelection, selectText } from './page-data';
 import { refFor, resolveRef } from './refs';
 import { buildSnapshot } from './snapshot';
+import { readVisibleText } from './visibility';
 
 declare global {
   interface Window {
@@ -154,7 +156,7 @@ function setFiles(ref: string, files: Array<{ name: string; mimeType: string; ba
 function readText(ref?: string): string {
   const el = ref ? resolveRef(ref) : document.body;
   if (!el) return '';
-  const text = (el as HTMLElement).innerText ?? el.textContent ?? '';
+  const text = el instanceof HTMLElement ? readVisibleText(el) : (el.textContent ?? '');
   return text.replace(/\n{3,}/g, '\n\n').trim();
 }
 
@@ -317,6 +319,10 @@ async function handle(req: FrameRequest): Promise<unknown> {
       return syntheticClick(req.ref, req.button, req.clickCount, req.modifiers);
     case 'synthetic-pointer':
       return syntheticPointer(req.ref, req.from, req.to, req.button, req.clickCount);
+    case 'describe-target':
+      return describeTarget(req.ref ? resolveRef(req.ref) : req.point ? clickableAt(deepElementFromPoint(req.point.x, req.point.y) ?? document.body) : focusedElement());
+    case 'detect-gates':
+      return detectGates();
     case 'overlay':
       await runOverlay(req.action);
       return true;

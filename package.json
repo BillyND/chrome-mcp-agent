@@ -12,7 +12,7 @@
     "test:e2e": "node scripts/pack-extension.mjs --dev && npm run build:local && playwright test",
     "deploy": "wrangler deploy --config worker/wrangler.jsonc",
     "setup": "node scripts/setup.mjs",
-    "check:live": "node scripts/pack-extension.mjs && node scripts/live-check.mjs"
+    "check:live": "node scripts/pack-extension.mjs && node --experimental-strip-types scripts/live-check.mjs"
   },
   "dependencies": {
     "@cloudflare/workers-oauth-provider": "^1.2.4",

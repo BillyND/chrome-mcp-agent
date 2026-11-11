@@ -32,3 +32,7 @@ export function refOf(snapshot: string, label: string, role?: string): string {
   if (!m) throw new Error(`No ref for ${role ?? ''} "${label}" in snapshot:\n${snapshot}`);
   return m[1];
 }
+
+/** The text a tool returned without the untrusted-content envelope (and the notice before it), for tests that parse the payload. */
+export const unwrapUntrusted = (text: string): string =>
+  text.replace(/^[\s\S]*?<untrusted_page_content>\n/, '').replace(/\n<\/untrusted_page_content>\s*$/, '');

@@ -16,6 +16,8 @@ export function children(node: Element | ShadowRoot | Document): Node[] {
 }
 
 export function shadowRootOf(el: Element): ShadowRoot | null {
+  // The agent's own overlay (cursor, bar, confirmation prompts) is never page content: snapshots must not list its buttons.
+  if (el.localName === 'helmsman-overlay') return null;
   // chrome.dom.openOrClosedShadowRoot reaches closed roots (web components in Gmail, Salesforce...).
   try {
     return (chrome.dom?.openOrClosedShadowRoot?.(el as HTMLElement) as ShadowRoot | null) ?? el.shadowRoot;
