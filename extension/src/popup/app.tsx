@@ -44,6 +44,7 @@ const Icon = {
 };
 
 const DOT: Record<string, string> = {
+  off: 'bg-muted-foreground',
   connected: 'bg-success',
   connecting: 'bg-warning animate-pulse',
   offline: 'bg-warning animate-pulse',
@@ -70,6 +71,13 @@ function CopyButton({ value, label }: { value: string; label: string }) {
       {done ? Icon.check : Icon.copy}
     </Button>
   );
+}
+
+/** One-line client config for the local MCP server (the port only appears when it is not the default). */
+function localSnippet(port: number): string {
+  const server: Record<string, unknown> = { command: 'npx', args: ['-y', 'helmsman-mcp'] };
+  if (port !== 47821) server.env = { HELMSMAN_PORT: String(port) };
+  return JSON.stringify({ mcpServers: { helmsman: server } });
 }
 
 function timeAgo(ts: number, lang: string): string {
@@ -113,8 +121,14 @@ function App() {
   const update = async (next: Partial<Prefs>) => setPrefsState(await setPrefs(next));
 
   const signedIn = !!s.code;
-  const statusKey = signedIn && s.paused ? 'paused' : s.status;
-  const statusText = signedIn && s.paused ? tr('paused') : tr(`status_${s.status}` as Key);
+  const active = signedIn || s.local.enabled;
+  const localUp = s.local.status === 'connected';
+  // The header shows the cloud connection, or the local one when that is all the user uses.
+  const headerStatus = s.status === 'connected' || localUp ? 'connected' : signedIn || !s.local.enabled ? s.status : s.local.status;
+  const statusKey = active && s.paused ? 'paused' : headerStatus;
+  const statusText = active && s.paused ? tr('paused') : tr(`status_${headerStatus}` as Key);
+  const localText = s.local.status === 'connecting' ? tr('localWaiting') : tr(`status_${s.local.status}` as Key);
+  const snippet = localSnippet(s.local.port);
   const error = s.lastError ? tr(`err_${s.lastError}` as Key) : '';
   const mcpUrl = `${s.gateway}/mcp`;
   const busy = s.status === 'connecting';
@@ -184,28 +198,62 @@ function App() {
               {tr('useHere')}
             </Button>
           )}
-
-          <Card className="flex items-center justify-between">
-            <label htmlFor="enabled" className="font-medium">
-              {tr('allow')}
-            </label>
-            <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
-          </Card>
-
-          <div className="mt-0.5 text-xs font-medium text-muted-foreground">{tr('activity')}</div>
-          <ul id="log" className="divide-y rounded-lg border">
-            {s.log.length === 0 && <li className="px-2.5 py-2 text-center text-xs text-muted-foreground">{tr('noActivity')}</li>}
-            {s.log.slice(0, 5).map((e) => (
-              <li key={`${e.t}-${e.tool}`} className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
-                <i className={cn('size-1.5 shrink-0 rounded-full', e.ok ? 'bg-success' : 'bg-destructive')} />
-                <span className="min-w-0 flex-1 truncate" title={e.summary}>
-                  {e.summary}
-                </span>
-                <span className="shrink-0 tabular-nums text-muted-foreground">{timeAgo(e.t, prefs.lang)}</span>
-              </li>
-            ))}
-          </ul>
         </section>
+      )}
+
+      <Card id="local" className="flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2">
+          <label htmlFor="local-enabled" className="font-medium">
+            {tr('localMode')}
+          </label>
+          <div className="flex items-center gap-2">
+            {s.local.enabled && (
+              <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <i className={cn('size-1.5 rounded-full', DOT[s.local.status])} />
+                {localText}
+              </span>
+            )}
+            <Switch id="local-enabled" checked={s.local.enabled} onCheckedChange={(enabled) => void send({ type: 'set-local', enabled })} />
+          </div>
+        </div>
+        {s.local.enabled && (
+          <>
+            <div className="text-xs text-muted-foreground">{tr('localHint')}</div>
+            <div className="flex items-center justify-between gap-2">
+              <code id="local-config" className="min-w-0 truncate font-mono text-xs" title={snippet}>
+                {snippet}
+              </code>
+              <CopyButton value={snippet} label={tr('copy')} />
+            </div>
+          </>
+        )}
+      </Card>
+
+      {active && (
+        <Card className="flex items-center justify-between">
+          <label htmlFor="enabled" className="font-medium">
+            {tr('allow')}
+          </label>
+          <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
+        </Card>
+      )}
+
+      {active && (
+        <>
+        <div className="mt-0.5 text-xs font-medium text-muted-foreground">{tr('activity')}</div>
+        <ul id="log" className="divide-y rounded-lg border">
+          {s.log.length === 0 && <li className="px-2.5 py-2 text-center text-xs text-muted-foreground">{tr('noActivity')}</li>}
+          {s.log.slice(0, 5).map((e) => (
+            <li key={`${e.t}-${e.tool}`} className="flex items-center gap-2 px-2.5 py-1.5 text-xs">
+              <i className={cn('size-1.5 shrink-0 rounded-full', e.ok ? 'bg-success' : 'bg-destructive')} />
+              <span className="min-w-0 flex-1 truncate" title={e.summary}>
+                {e.summary}
+              </span>
+              <span className="shrink-0 tabular-nums text-muted-foreground">{timeAgo(e.t, prefs.lang)}</span>
+            </li>
+          ))}
+        </ul>
+        </>
       )}
 
       <footer className="flex items-center gap-2 pt-0.5">
