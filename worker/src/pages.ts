@@ -49,7 +49,9 @@ export function landingPage(publicUrl: string): string {
     'Chrome MCP Agent',
     `<div class="card"><h2>Cài đặt trong 3 bước</h2><p class="muted">Không cần cài phần mềm nào khác. Làm một lần là dùng mãi.</p>
 <ol class="steps">
-<li><b>Cài extension Chrome MCP Agent</b><span class="muted">Mở link cài đặt bạn được gửi, bấm "Thêm vào Chrome", rồi ghim biểu tượng lên thanh công cụ.</span></li>
+<li><b>Tải và cài extension</b>
+<div class="row" style="margin:8px 0 10px"><a class="btn" href="/chrome-mcp-agent.zip" download>⬇ Tải extension (.zip)</a></div>
+<span class="muted">Giải nén file vừa tải. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b> (góc phải trên), bấm <b>Load unpacked</b> và chọn thư mục vừa giải nén. Cuối cùng ghim biểu tượng con trỏ tím lên thanh công cụ.</span></li>
 <li><b>Bấm biểu tượng → "Đăng nhập bằng Google"</b><span class="muted">Khi thấy chấm xanh <span class="pill">● Đã kết nối</span> là xong.</span></li>
 <li><b>Thêm vào ChatGPT</b><span class="muted">ChatGPT → Cài đặt → Apps &amp; Connectors → Advanced → bật Developer mode → Create. Dán địa chỉ này, chọn OAuth, rồi đăng nhập Google:</span>
 <div class="url"><code id="u">${escapeHtml(mcpUrl)}</code><button class="secondary" onclick="navigator.clipboard.writeText(document.getElementById('u').textContent);this.textContent='Đã copy ✓'">Copy</button></div></li>

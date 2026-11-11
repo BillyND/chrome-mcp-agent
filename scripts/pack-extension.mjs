@@ -61,4 +61,10 @@ try {
 } catch {
   console.warn('zip not available; skipped packing');
 }
+// The gateway serves the zip from its landing page (Workers static assets).
+if (fs.existsSync(zip)) {
+  const assets = path.join(root, 'worker', 'public');
+  fs.mkdirSync(assets, { recursive: true });
+  fs.copyFileSync(zip, path.join(assets, 'chrome-mcp-agent.zip'));
+}
 console.log(`Built extension for ${gateway} -> ${path.relative(root, out)} (+ ${path.relative(root, zip)})`);

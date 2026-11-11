@@ -7,3 +7,4 @@ worker/.wrangler/
 test-results/
 playwright-report/
 secrets.local.json
+worker/public/

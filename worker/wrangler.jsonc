@@ -5,6 +5,8 @@
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "workers_dev": true,
   "observability": { "enabled": true },
+  // Only files that exist here are served as-is (the extension zip); every other path reaches the Worker.
+  "assets": { "directory": "public" },
   "kv_namespaces": [{ "binding": "OAUTH_KV", "id": "be0a5bc5312047f1a957afa9f3bc9fd6" }],
   "durable_objects": { "bindings": [{ "name": "HUB", "class_name": "DeviceHub" }] },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["DeviceHub"] }],
