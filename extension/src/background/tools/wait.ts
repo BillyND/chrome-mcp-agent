@@ -16,7 +16,7 @@ export const waitTools = {
     if (args.text) conditions.push({ describe: `"${args.text}" to appear`, met: () => anyFrame(() => ({ cmd: 'has-text', text: String(args.text) })) });
     if (args.textGone) conditions.push({ describe: `"${args.textGone}" to disappear`, met: async () => !(await anyFrame(() => ({ cmd: 'has-text', text: String(args.textGone) }))) });
     if (args.selector) conditions.push({ describe: `selector ${args.selector} to appear`, met: () => anyFrame(() => ({ cmd: 'has-selector', selector: String(args.selector), visible: true })) });
-    if (args.selectorGone) conditions.push({ describe: `selector ${args.selectorGone} to disappear`, met: async () => !(await anyFrame(() => ({ cmd: 'has-selector', selector: String(args.selectorGone), visible: false }))) });
+    if (args.selectorGone) conditions.push({ describe: `selector ${args.selectorGone} to disappear`, met: async () => !(await anyFrame(() => ({ cmd: 'has-selector', selector: String(args.selectorGone), visible: true }))) });
 
     if (args.time) {
       const ms = Math.min(Number(args.time), 30) * 1000;

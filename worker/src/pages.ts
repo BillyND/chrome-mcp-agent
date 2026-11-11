@@ -59,6 +59,11 @@ code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--mu
 .field input{font:600 20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;height:48px;padding:0 14px;border-radius:var(--radius);border:1px solid var(--input);background:transparent;color:var(--foreground);width:100%}
 .error{color:var(--destructive);font-weight:500;margin:12px 0 0;font-size:14px}
 .big{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--secondary);margin-bottom:12px;font-size:20px}
+.prose h2{margin:28px 0 8px}.prose p,.prose ul{margin:0 0 12px}.prose ul{padding-left:20px}.prose li{margin:4px 0}
+.prose table{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 12px}.prose th,.prose td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--border)}.prose th{white-space:nowrap}
+footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
+footer a{color:var(--muted-foreground);text-underline-offset:3px}footer a:hover{color:var(--foreground)}
+a.link{color:var(--foreground);text-underline-offset:3px}
 @media (max-width:420px){h1{font-size:26px}.card{padding:18px}.row .btn{flex:1}}
 `;
 
@@ -114,7 +119,93 @@ export function landingPage(publicUrl: string): string {
       'Settings → Apps &amp; Connectors → Advanced → Developer mode → Create. Paste the MCP URL, choose OAuth, then paste the code.',
     )}</div>
 <div class="url"><code id="u">${escapeHtml(mcpUrl)}</code><button type="button" class="btn outline sm copy" data-copy="u"><span class="no">${bi('Sao chép', 'Copy')}</span><span class="ok">${bi('Đã chép', 'Copied')}</span></button></div></li>
-</ol></div>`,
+</ol></div>
+${footer}`,
+  );
+}
+
+export const REPO_URL = 'https://github.com/BillyND/chrome-mcp-agent';
+
+const footer = `<footer><a href="/privacy">${bi('Chính sách quyền riêng tư', 'Privacy policy')}</a><a href="${REPO_URL}">GitHub</a></footer>`;
+
+/** Privacy policy for the Chrome Web Store listing: same layout, EN and VI toggled like the landing. */
+export function privacyPage(): string {
+  const issues = `<a class="link" href="${REPO_URL}/issues">${REPO_URL.replace('https://', '')}/issues</a>`;
+  return layout(
+    'Helmsman – Privacy policy',
+    `<section class="hero"><h1>${bi('Chính sách quyền riêng tư', 'Privacy policy')}</h1>
+<p class="muted">${bi('Cập nhật lần cuối: 12/11/2026', 'Last updated: 12 November 2026')}</p></section>
+<div class="card prose">
+<p>${bi(
+      'Helmsman là extension Chrome cho phép trợ lý AI <b>của chính bạn</b> (ChatGPT, Claude, Cursor…) đọc và điều khiển các tab trình duyệt của bạn. Chúng tôi không có tài khoản người dùng, không có quảng cáo, không bán hay chia sẻ dữ liệu, và không dùng dữ liệu của bạn để huấn luyện mô hình.',
+      'Helmsman is a Chrome extension that lets <b>your own</b> AI assistant (ChatGPT, Claude, Cursor…) read and control your browser tabs. There are no user accounts, no ads, we never sell or share data, and we never use your data to train models.',
+    )}</p>
+
+<h2>${bi('1. Dữ liệu được xử lý', '1. Data that is processed')}</h2>
+<ul>
+<li>${bi(
+      '<b>Nội dung trang</b> (cây truy cập, chữ, ảnh chụp màn hình, URL, tiêu đề tab) chỉ được đọc khi trợ lý AI của bạn gọi một tool, rồi gửi <b>duy nhất</b> tới client AI mà bạn đã kết nối. Extension không gửi nội dung trang tới máy chủ của chúng tôi hay bất kỳ bên thứ ba nào khác.',
+      '<b>Page content</b> (accessibility tree, text, screenshots, URLs, tab titles) is read only when your AI assistant calls a tool, and is sent <b>only</b> to the AI client you connected. The extension sends page content to no server of ours and to no other third party.',
+    )}</li>
+<li>${bi(
+      '<b>Chế độ đám mây</b>: gateway (Cloudflare Worker) chỉ chuyển tiếp lệnh và kết quả giữa client AI và Chrome của bạn. Gateway <b>không lưu</b> nội dung trang, kết quả tool hay lịch sử lệnh; dữ liệu chỉ đi qua bộ nhớ trong lúc xử lý một lệnh.',
+      '<b>Cloud mode</b>: the gateway (a Cloudflare Worker) only relays commands and results between the AI client and your Chrome. It <b>does not store</b> page content, tool results or command history; data passes through memory while one command is handled.',
+    )}</li>
+<li>${bi(
+      '<b>Chế độ cục bộ</b>: mọi thứ đi qua WebSocket tới <code>127.0.0.1</code> trên máy bạn, không qua Internet.',
+      '<b>Local mode</b>: everything goes over a WebSocket to <code>127.0.0.1</code> on your computer, never over the Internet.',
+    )}</li>
+</ul>
+
+<h2>${bi('2. Dữ liệu gateway lưu (Cloudflare KV)', '2. What the gateway stores (Cloudflare KV)')}</h2>
+<p>${bi('Chỉ những mục sau, không có nội dung duyệt web:', 'Only the following, never any browsing content:')}</p>
+<ul>
+<li>${bi('Các <b>quyền OAuth</b> (grant, token) mà bạn cấp cho client AI qua trang cho phép.', 'The <b>OAuth grants</b> (grants, tokens) you give an AI client on the consent page.')}</li>
+<li>${bi('<b>Mã thiết bị</b> ngẫu nhiên của mỗi Chrome và <b>mã kết nối</b> ghép với nó.', 'A random <b>device id</b> for each Chrome and the <b>connection code</b> paired with it.')}</li>
+<li>${bi('Bộ đếm số lần nhập sai mã kết nối theo địa chỉ IP, tự xoá sau 10 phút (chống dò mã).', 'A counter of wrong connection codes per IP address, deleted automatically after 10 minutes (brute-force protection).')}</li>
+</ul>
+<p>${bi('Bấm <b>Ngắt kết nối Chrome này</b> trong extension sẽ xoá mã thiết bị, mã kết nối và vô hiệu mọi quyền đã cấp cho mã đó.', 'Clicking <b>Disconnect this Chrome</b> in the extension deletes the device id and connection code and invalidates every grant made with that code.')}</p>
+
+<h2>${bi('3. Dữ liệu ở lại trên máy bạn', '3. What stays on your device')}</h2>
+<p>${bi(
+      'Lưu trong <code>chrome.storage.local</code> của trình duyệt, không bao giờ gửi đi: <b>kho bí mật</b> (tên và giá trị bạn nhập; model chỉ thấy tên, giá trị được che trong mọi kết quả tool), <b>nhật ký kiểm tra</b> (tối đa 2000 dòng, có nút xuất và xoá), <b>quy tắc theo trang</b>, tuỳ chọn giao diện/ngôn ngữ và các <b>quy trình đã lưu</b>.',
+      'Kept in the browser\'s <code>chrome.storage.local</code> and never sent anywhere: the <b>secrets vault</b> (names and values you enter; the model sees only names, and values are masked in every tool result), the <b>audit log</b> (up to 2000 entries, with export and clear buttons), <b>site rules</b>, interface preferences and <b>saved workflows</b>.',
+    )}</p>
+
+<h2>${bi('4. Quyền của extension và mục đích', '4. Extension permissions and why')}</h2>
+<table>
+<tr><th><code>debugger</code></th><td>${bi('Gửi sự kiện chuột, phím, chụp màn hình, in PDF và hộp thoại JS như người dùng thật.', 'Send real mouse and keyboard events, screenshots, PDF export and JS dialog handling.')}</td></tr>
+<tr><th><code>tabs</code>, <code>tabGroups</code></th><td>${bi('Liệt kê, mở, đóng tab và gom tab của từng agent vào một nhóm riêng.', 'List, open and close tabs, and keep each agent\'s tabs in its own group.')}</td></tr>
+<tr><th><code>scripting</code>, <code>webNavigation</code></th><td>${bi('Đọc trang và iframe, theo dõi điều hướng.', 'Read pages and iframes and follow navigation.')}</td></tr>
+<tr><th><code>storage</code>, <code>alarms</code></th><td>${bi('Lưu cài đặt cục bộ; giữ kết nối và dọn phiên không dùng.', 'Keep local settings; keep the connection alive and clean up idle sessions.')}</td></tr>
+<tr><th><code>downloads</code></th><td>${bi('Tải file hoặc PDF khi AI yêu cầu và bạn cho phép.', 'Download files or PDFs when the AI asks and you allow it.')}</td></tr>
+<tr><th><code>cookies</code>, <code>history</code></th><td>${bi('Chỉ dùng khi AI gọi tool <code>browser_cookies</code> / <code>browser_history</code>; kết quả chỉ về client AI của bạn.', 'Used only when the AI calls <code>browser_cookies</code> / <code>browser_history</code>; results go only to your AI client.')}</td></tr>
+<tr><th>&lt;all_urls&gt;</th><td>${bi('AI có thể được yêu cầu làm việc trên bất kỳ trang nào. Bạn kiểm soát bằng quy tắc theo trang, công tắc Dừng và hộp thoại xác nhận.', 'The AI may be asked to work on any site. You stay in control with site rules, the Stop switch and confirmation prompts.')}</td></tr>
+</table>
+<p>${bi('Extension không tải hay chạy mã từ xa; toàn bộ mã nằm trong gói cài đặt.', 'The extension loads and runs no remote code; all code ships in the package.')}</p>
+
+<h2>${bi('5. Lưu giữ', '5. Retention')}</h2>
+<p>${bi(
+      'Gateway không lưu nội dung trang nên không có gì để giữ. Mã thiết bị, mã kết nối và quyền OAuth được giữ tới khi bạn ngắt kết nối. Dữ liệu cục bộ giữ tới khi bạn xoá nó hoặc gỡ extension.',
+      'The gateway keeps no page content, so there is nothing to retain. Device ids, connection codes and OAuth grants are kept until you disconnect. Local data is kept until you delete it or uninstall the extension.',
+    )}</p>
+
+<h2>${bi('6. Chia sẻ và bên thứ ba', '6. Sharing and third parties')}</h2>
+<p>${bi(
+      'Chúng tôi không bán, cho thuê hay chia sẻ dữ liệu. Client AI bạn chọn (ví dụ ChatGPT hoặc Claude) nhận nội dung trang mà tool trả về và xử lý theo chính sách của họ. Hạ tầng chạy trên Cloudflare Workers.',
+      'We never sell, rent or share data. The AI client you choose (for example ChatGPT or Claude) receives what the tools return and handles it under its own policy. The infrastructure runs on Cloudflare Workers.',
+    )}</p>
+
+<h2>${bi('7. Bảo vệ người dùng', '7. Safeguards')}</h2>
+<p>${bi(
+      'Hành động nhạy cảm (gửi, thanh toán, xoá, tải lên…) luôn hỏi bạn; số thẻ và giấy tờ tuỳ thân bị chặn; chữ lấy từ trang được gắn nhãn là dữ liệu không đáng tin để chống prompt injection; công tắc <b>Cho phép AI điều khiển</b> dừng AI ngay lập tức.',
+      'Sensitive actions (submit, pay, delete, upload…) always ask you; card numbers and ID numbers are blocked; page text is labelled untrusted to resist prompt injection; the <b>Allow AI control</b> switch stops the AI immediately.',
+    )}</p>
+
+<h2>${bi('8. Thay đổi và liên hệ', '8. Changes and contact')}</h2>
+<p>${bi('Khi chính sách thay đổi, ngày cập nhật ở trên sẽ đổi. Câu hỏi hoặc yêu cầu về dữ liệu: mở một issue tại', 'If this policy changes, the date above changes. Questions or data requests: open an issue at')} ${issues}.</p>
+</div>
+${footer}`,
   );
 }
 
