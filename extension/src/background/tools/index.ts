@@ -5,7 +5,13 @@
 // input on a tab never interleave. Calls without a tab queue per agent.
 
 import type { ToolContent } from '../../../../shared/protocol';
+import { protectContent } from '../output/protect';
+import { outputTools } from '../output/tools';
+import { assertSecretsAllowed, secretsTools } from '../secrets/tools';
+import { setRunningAgent } from '../snapshot/session';
 import { pausedLoaded, state } from '../state';
+import { beginStep } from '../workflows/recorder';
+import { workflowTools } from '../workflows/tools';
 import { DEFAULT_AGENT } from './agent-id';
 import { browserDataTools } from './browser-data';
 import { captureTools } from './capture';
@@ -44,6 +50,10 @@ const TOOLS: Record<string, ToolSpec> = {
   ...devtoolsLogTools,
   ...emulationTools,
   ...browserDataTools,
+  ...outputTools,
+  ...secretsTools,
+  // Replays call tools like any agent would, but must not be recorded as steps themselves.
+  ...workflowTools((tool, args, agent) => execute(tool, args, agent, false)),
 };
 
 export const TOOL_NAMES = Object.keys(TOOLS);
@@ -52,10 +62,21 @@ const scheduler = new Scheduler(MAX_PARALLEL);
 
 const failure = (message: string) => ({ content: text(message), isError: true as const });
 
+/** Runs a tool call and applies what every result gets on the way out: secrets hidden, output budget enforced. */
 export async function runTool(
   name: string,
   args: Record<string, unknown>,
   agent: string = DEFAULT_AGENT,
+): Promise<{ content: ToolContent[]; isError?: boolean }> {
+  const result = await execute(name, args, agent, true);
+  return { ...result, content: await protectContent(result.content, agent, args ?? {}) };
+}
+
+async function execute(
+  name: string,
+  args: Record<string, unknown>,
+  agent: string,
+  record: boolean,
 ): Promise<{ content: ToolContent[]; isError?: boolean }> {
   await pausedLoaded;
   if (state.paused) return failure(STOPPED);
@@ -68,16 +89,21 @@ export async function runTool(
   signal.addEventListener('abort', onStop, { once: true });
   try {
     const input = (args ?? {}) as Args;
+    assertSecretsAllowed(name, input);
     const ctx: ToolCtx = { agent, tabId: -1, signal };
-    let lane = `agent:${agent}`;
+    let lane = `${spec.lane ?? 'agent'}:${agent}`;
     if (spec.scope === 'tab') {
       const tab = await resolveTab(agent, input.tabId);
       ctx.tabId = tab.id!;
       lane = `tab:${tab.id}`;
     }
-    const content = await scheduler.run(lane, () => {
+    const content = await scheduler.run(lane, async () => {
       if (state.paused || signal.aborted) throw new ToolError(STOPPED);
-      return spec.run(input, ctx);
+      if (spec.scope === 'tab') setRunningAgent(ctx.tabId, agent);
+      const recorded = record ? await beginStep(agent, name, input, ctx) : undefined;
+      const result = await spec.run(input, ctx);
+      recorded?.();
+      return result;
     });
     return { content };
   } catch (e) {

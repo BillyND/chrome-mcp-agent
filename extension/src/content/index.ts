@@ -4,6 +4,7 @@
 
 import type { FrameRequest, FrameResponse, PrepareResult, RuntimeMessage } from '../messages';
 import { clean, describe, isEditable, shadowRootOf } from './dom';
+import { describeRef, findByLocator } from './locator-dom';
 import { isOverlay, runOverlay } from './overlay';
 import { extractPage, findText, hasSelector, readSelection, selectText } from './page-data';
 import { refFor, resolveRef } from './refs';
@@ -74,7 +75,8 @@ function prepare(ref: string, scroll: boolean): PrepareResult {
     tag: el.localName,
     inputType: el instanceof HTMLInputElement ? el.type : undefined,
     editable: isEditable(el),
-    checked: el instanceof HTMLInputElement ? el.checked : el.getAttribute('aria-checked') === 'true' ? true : el.hasAttribute('aria-checked') ? false : undefined,
+    // Only toggles have a checked state: a text input must not look like a checkbox to browser_fill_form.
+    checked: el instanceof HTMLInputElement ? (el.type === 'checkbox' || el.type === 'radio' ? el.checked : undefined) : el.getAttribute('aria-checked') === 'true' ? true : el.hasAttribute('aria-checked') ? false : undefined,
     coveredBy,
   };
 }
@@ -266,7 +268,11 @@ async function handle(req: FrameRequest): Promise<unknown> {
     case 'ping':
       return { url: location.href, top: window === window.top };
     case 'snapshot':
-      return buildSnapshot(req.prefix);
+      return buildSnapshot(req.prefix, { ref: req.ref, depth: req.depth, interactiveOnly: req.interactiveOnly });
+    case 'describe-ref':
+      return describeRef(req.ref);
+    case 'find-by-locator':
+      return findByLocator(req.locator, req.prefix);
     case 'announce-to-parent':
       window.parent.postMessage({ [ANNOUNCE]: req.nonce }, '*');
       return true;

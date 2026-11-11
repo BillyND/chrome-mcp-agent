@@ -2,6 +2,8 @@
 // runs in every frame. Requests go background -> frame via chrome.tabs.sendMessage
 // with a frameId; the frame answers through sendResponse.
 
+import type { Fingerprint } from './locator';
+
 export interface Rect {
   x: number;
   y: number;
@@ -24,7 +26,9 @@ export interface PrepareResult {
 
 export type FrameRequest =
   | { cmd: 'ping' }
-  | { cmd: 'snapshot'; prefix: string }
+  | { cmd: 'snapshot'; prefix: string; ref?: string; depth?: number; interactiveOnly?: boolean }
+  | { cmd: 'describe-ref'; ref: string }
+  | { cmd: 'find-by-locator'; locator: Fingerprint; prefix: string }
   | { cmd: 'identify-child'; nonce: string }
   | { cmd: 'announce-to-parent'; nonce: string }
   | { cmd: 'prepare'; ref: string; scroll: boolean }
