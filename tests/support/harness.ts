@@ -5,59 +5,19 @@ import { chromium, expect, type BrowserContext, type Worker } from '@playwright/
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { startFixtures } from '../fixtures/server.mjs';
+import { cloudCall, refOf } from '../fixtures/helpers';
+import { FIXTURE_PORT, startFixtures } from '../fixtures/server.mjs';
+
+export const SITE_A = `http://localhost:${FIXTURE_PORT}`;
 
 export const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
 export const DEVICE = 'e2e-device';
 const EXT = path.resolve('extension/unpacked');
 
-export interface ToolResult {
-  content: Array<{ type: string; text?: string; data?: string }>;
-  isError?: boolean;
-}
-
-let rpcId = 0;
+export { refOf };
 
 /** One MCP tool call; `agent` selects which AI client the gateway says is calling. */
-export async function call(name: string, args: Record<string, unknown> = {}, agent?: string): Promise<ToolResult & { text: string }> {
-  const query = new URLSearchParams({ device: DEVICE, ...(agent ? { agent } : {}) });
-  const res = await fetch(`${GATEWAY}/dev/mcp?${query}`, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      accept: 'application/json, text/event-stream',
-      'mcp-protocol-version': '2025-06-18',
-    },
-    body: JSON.stringify({ jsonrpc: '2.0', id: ++rpcId, method: 'tools/call', params: { name, arguments: args } }),
-  });
-  const raw = await res.text();
-  const dataLine = raw.split('\n').find((l) => l.startsWith('data: ')) ?? raw;
-  const msg = JSON.parse(dataLine.replace(/^data: /, ''));
-  if (msg.error) throw new Error(`${name}: ${JSON.stringify(msg.error)}`);
-  const result = msg.result as ToolResult;
-  const text = result.content.filter((c) => c.type === 'text').map((c) => c.text).join('\n');
-  return { ...result, text };
-}
-
-/** Width and height from a base64 JPEG's SOF marker. */
-export function jpegSize(b64: string): { width: number; height: number } {
-  const b = Buffer.from(b64, 'base64');
-  for (let i = 2; i < b.length; ) {
-    const marker = b[i + 1];
-    const len = b.readUInt16BE(i + 2);
-    if (marker >= 0xc0 && marker <= 0xc2) return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
-    i += 2 + len;
-  }
-  throw new Error('not a JPEG');
-}
-
-/** Finds the ref of the first snapshot line containing `label` (and optionally a role). */
-export function refOf(snapshot: string, label: string, role?: string): string {
-  const line = snapshot.split('\n').find((l) => l.includes(label) && /\[ref=/.test(l) && (!role || l.includes(`- ${role}`)));
-  const m = line && /ref=(f?\d*e\d+)/.exec(line);
-  if (!m) throw new Error(`No ref for ${role ?? ''} "${label}" in snapshot:\n${snapshot}`);
-  return m[1];
-}
+export const call = (name: string, args: Record<string, unknown> = {}, agent?: string) => cloudCall(GATEWAY, DEVICE, name, args, agent);
 
 /** Tab id from a result's "Tab 12" or "Opened tab 12" text. */
 export function tabIdOf(text: string): number {

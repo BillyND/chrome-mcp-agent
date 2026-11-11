@@ -3,8 +3,7 @@
 
 import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
-import { SITE_A } from './fixtures/server.mjs';
-import { call, refOf, startHarness, stopHarness, tabIdOf, type Harness } from './support/harness';
+import { call, refOf, SITE_A, startHarness, stopHarness, tabIdOf, type Harness } from './support/harness';
 
 let h: Harness;
 

@@ -1,61 +1,14 @@
-// Keeps one WebSocket to the gateway open for as long as Chrome runs:
-// - heartbeat every 20s (also keeps the MV3 service worker alive),
-// - exponential backoff with jitter on failure, instant retry when the network returns,
-// - an alarm that revives the connection if Chrome ever suspended the worker.
+// The two relays the extension can talk to, both built from the same Endpoint:
+// - cloud: the gateway, needs the connection-code account, backs off up to 15s;
+// - local: an MCP server on this machine, only while the user turned "Local mode" on,
+//   retries quietly every few seconds and needs no account.
 
-import {
-  AUTH_PROTOCOL_PREFIX,
-  CHUNK_SIZE,
-  type ExtensionToHub,
-  type HubToExtension,
-  PING,
-  PING_INTERVAL_MS,
-  PROTOCOL,
-} from '../../../shared/protocol';
-import { GATEWAY_URL, getAccount, setAccount, setStatus, state } from './state';
+import { AUTH_PROTOCOL_PREFIX, PROTOCOL } from '../../../shared/protocol';
+import { type CallMessage, Endpoint } from './endpoint';
+import { GATEWAY_URL, getAccount, LOCAL_PORT, localLoaded, setAccount, setLocalEnabled, setLocalStatus, setStatus, state } from './state';
 
-const PONG_TIMEOUT_MS = 10_000;
 const MAX_BACKOFF_MS = 15_000;
-
-let ws: WebSocket | null = null;
-let heartbeat: ReturnType<typeof setInterval> | undefined;
-let pongTimer: ReturnType<typeof setTimeout> | undefined;
-let retryTimer: ReturnType<typeof setTimeout> | undefined;
-let failures = 0;
-let onCall: ((msg: Extract<HubToExtension, { type: 'call' }>) => void) | null = null;
-
-export function onToolCall(handler: typeof onCall) {
-  onCall = handler;
-}
-
-const wsUrl = () => `${GATEWAY_URL.replace(/^http/, 'ws')}/ext/ws`;
-
-function cleanup() {
-  clearInterval(heartbeat);
-  clearTimeout(pongTimer);
-  heartbeat = undefined;
-  if (ws) {
-    ws.onopen = ws.onclose = ws.onerror = ws.onmessage = null;
-    try {
-      ws.close();
-    } catch {
-      /* ignore */
-    }
-  }
-  ws = null;
-}
-
-export function isConnected(): boolean {
-  return ws?.readyState === WebSocket.OPEN;
-}
-
-function scheduleRetry() {
-  clearTimeout(retryTimer);
-  failures++;
-  const base = Math.min(MAX_BACKOFF_MS, 500 * 2 ** Math.min(failures, 6));
-  const delay = Math.round(base * (0.7 + Math.random() * 0.6));
-  retryTimer = setTimeout(() => void connect(), delay);
-}
+const LOCAL_RETRY_MS = 3_000;
 
 /** After several failed attempts, ask the gateway whether the token itself is the problem. */
 async function tokenRejected(token: string): Promise<'ok' | 'invalid' | 'unreachable'> {
@@ -68,102 +21,44 @@ async function tokenRejected(token: string): Promise<'ok' | 'invalid' | 'unreach
   }
 }
 
-export async function connect(): Promise<void> {
-  clearTimeout(retryTimer);
-  if (ws && (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)) return;
-  const account = await getAccount();
-  if (!account) {
-    setStatus('signed-out');
-    return;
-  }
-  if (state.status === 'replaced') return;
-  if (!navigator.onLine) {
-    setStatus('offline', 'offline');
-    return;
-  }
-  if (failures >= 3 && failures % 3 === 0) {
-    const verdict = await tokenRejected(account.token);
-    if (verdict === 'invalid') {
+export const cloud = new Endpoint({
+  async open(failures) {
+    const account = await getAccount();
+    if (!account) return { status: 'signed-out' };
+    if (!navigator.onLine) return { status: 'offline', error: 'offline' };
+    if (failures >= 3 && failures % 3 === 0 && (await tokenRejected(account.token)) === 'invalid') {
       await setAccount(null);
-      setStatus('signed-out', 'revoked');
-      return;
+      return { status: 'signed-out', error: 'revoked' };
     }
-  }
-  setStatus('connecting');
-  cleanup();
-  const socket = new WebSocket(wsUrl(), [PROTOCOL, AUTH_PROTOCOL_PREFIX + account.token]);
-  ws = socket;
+    return { url: `${GATEWAY_URL.replace(/^http/, 'ws')}/ext/ws`, protocols: [PROTOCOL, AUTH_PROTOCOL_PREFIX + account.token] };
+  },
+  retryMs: (failures) => Math.round(Math.min(MAX_BACKOFF_MS, 500 * 2 ** Math.min(failures, 6)) * (0.7 + Math.random() * 0.6)),
+  setStatus,
+  status: () => state.status,
+});
 
-  socket.onopen = () => {
-    failures = 0;
-    setStatus('connected');
-    send({ type: 'status', version: chrome.runtime.getManifest().version, userAgent: navigator.userAgent });
-    heartbeat = setInterval(() => {
-      if (socket.readyState !== WebSocket.OPEN) return;
-      socket.send(PING);
-      clearTimeout(pongTimer);
-      pongTimer = setTimeout(() => {
-        // No pong: the connection is dead even if the socket still looks open.
-        cleanup();
-        setStatus('connecting');
-        scheduleRetry();
-      }, PONG_TIMEOUT_MS);
-    }, PING_INTERVAL_MS);
-  };
+export const local = new Endpoint({
+  async open() {
+    await localLoaded;
+    if (!state.local.enabled) return { status: 'off' };
+    return { url: `ws://127.0.0.1:${LOCAL_PORT}`, protocols: [PROTOCOL] };
+  },
+  retryMs: () => LOCAL_RETRY_MS,
+  setStatus: setLocalStatus,
+  status: () => state.local.status,
+});
 
-  socket.onmessage = (event) => {
-    const data = typeof event.data === 'string' ? event.data : '';
-    if (data === 'pong') {
-      clearTimeout(pongTimer);
-      return;
-    }
-    let msg: HubToExtension;
-    try {
-      msg = JSON.parse(data);
-    } catch {
-      return;
-    }
-    if (msg.type === 'call') onCall?.(msg);
-  };
-
-  socket.onclose = (event) => {
-    if (ws !== socket) return;
-    cleanup();
-    if (event.code === 4000) {
-      setStatus('replaced', 'replaced');
-      return;
-    }
-    setStatus(navigator.onLine ? 'connecting' : 'offline');
-    scheduleRetry();
-  };
-
-  socket.onerror = () => {
-    /* onclose follows and handles retry */
-  };
+/** Both endpoints deliver calls to one handler, together with the endpoint to answer on. */
+export function onToolCall(handler: (msg: CallMessage, endpoint: Endpoint) => void) {
+  cloud.onToolCall((msg) => handler(msg, cloud));
+  local.onToolCall((msg) => handler(msg, local));
 }
 
-export function send(msg: ExtensionToHub): void {
-  if (!ws || ws.readyState !== WebSocket.OPEN) return;
-  const raw = JSON.stringify(msg);
-  if (raw.length <= CHUNK_SIZE || msg.type !== 'result') {
-    ws.send(raw);
-    return;
+export async function setLocalMode(enabled: boolean) {
+  await setLocalEnabled(enabled);
+  if (enabled) await local.reconnectNow();
+  else {
+    local.disconnect();
+    setLocalStatus('off');
   }
-  const total = Math.ceil(raw.length / CHUNK_SIZE);
-  for (let i = 0; i < total; i++) {
-    ws.send(JSON.stringify({ type: 'chunk', id: msg.id, index: i, total, data: raw.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE) } satisfies ExtensionToHub));
-  }
-}
-
-export function disconnect() {
-  clearTimeout(retryTimer);
-  cleanup();
-}
-
-/** Called by the user ("Dùng Chrome này") or when settings change. */
-export async function reconnectNow() {
-  failures = 0;
-  if (state.status === 'replaced') setStatus('connecting');
-  disconnect();
-  await connect();
 }

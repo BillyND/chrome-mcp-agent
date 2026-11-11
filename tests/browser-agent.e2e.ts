@@ -1,22 +1,63 @@
 // End-to-end: real Chromium with the extension, the gateway under `wrangler dev`,
 // and MCP tool calls exactly as ChatGPT sends them.
 
-import { expect, request as http, test, type BrowserContext } from '@playwright/test';
+import { chromium, expect, request as http, test, type BrowserContext } from '@playwright/test';
 import crypto from 'node:crypto';
-import { SITE_A, SITE_B } from './fixtures/server.mjs';
-import { call, GATEWAY, jpegSize, refOf, startHarness, stopHarness, type Harness } from './support/harness';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { cloudCall, refOf } from './fixtures/helpers';
+import { FIXTURE_PORT, startFixtures } from './fixtures/server.mjs';
 
-let harness: Harness;
+const GATEWAY = `http://localhost:${process.env.E2E_PORT ?? 8787}`;
+const DEVICE = 'e2e-device';
+const EXT = path.resolve('extension/unpacked');
+
 let ctx: BrowserContext;
-let fixtures: Harness['fixtures'];
+let fixtures: { url: string; close: () => Promise<unknown> };
+const call = (name: string, args: Record<string, unknown> = {}) => cloudCall(GATEWAY, DEVICE, name, args);
+
+/** Width and height from a base64 JPEG's SOF marker. */
+function jpegSize(b64: string): { width: number; height: number } {
+  const b = Buffer.from(b64, 'base64');
+  for (let i = 2; i < b.length; ) {
+    const marker = b[i + 1];
+    const len = b.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xc2) return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
+    i += 2 + len;
+  }
+  throw new Error('not a JPEG');
+}
 
 test.beforeAll(async () => {
-  harness = await startHarness();
-  ({ ctx, fixtures } = harness);
+  fixtures = await startFixtures();
+  const token = await (await fetch(`${GATEWAY}/dev/token?device=${DEVICE}`)).text();
+  const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cma-e2e-'));
+  ctx = await chromium.launchPersistentContext(userDataDir, {
+    channel: 'chromium',
+    headless: true,
+    // Retina like most Macs (a real scale factor, not Playwright's emulation): screenshots must still be in CSS pixels.
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, '--force-device-scale-factor=2', '--window-size=1280,800'],
+    viewport: null, // real window metrics, no Playwright emulation layered over the extension's debugger
+  });
+  let [sw] = ctx.serviceWorkers();
+  sw ??= await ctx.waitForEvent('serviceworker');
+  await sw.evaluate(async (t) => {
+    await chrome.storage.local.set({ account: { token: t, code: 'E2E00-00000' } });
+  }, token);
+  const page = ctx.pages()[0] ?? (await ctx.newPage());
+  // Playwright auto-dismisses dialogs unless someone listens; leave them to the agent.
+  ctx.on('page', (p) => p.on('dialog', () => {}));
+  page.on('dialog', () => {});
+  await page.goto(fixtures.url);
+  // Reconnect with the stored account (the popup's "reconnect" message does the same).
+  await sw.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {}));
+  await expect.poll(async () => (await call('browser_tabs', { action: 'list' })).isError ?? false, { timeout: 30_000 }).toBe(false);
 });
 
 test.afterAll(async () => {
-  await stopHarness(harness);
+  await ctx?.close();
+  await fixtures?.close();
 });
 
 test('controls the page, shadow DOM, and iframes across origins', async () => {
@@ -105,7 +146,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   r = await call('browser_evaluate', { script: 'document.title' });
   expect(r.text).toContain('"Fixture Home"');
   r = await call('browser_evaluate', { script: 'return element.value + " @ " + location.origin', ref: emailRef });
-  expect(r.text).toContain(`ban@vidu.vn @ ${SITE_B}`);
+  expect(r.text).toContain(`ban@vidu.vn @ http://127.0.0.1:${FIXTURE_PORT + 1}`);
 
   // Scroll and wait
   r = await call('browser_scroll', { direction: 'down', amount: 1500 });
@@ -120,7 +161,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(fullShot.content.some((c) => c.type === 'image')).toBe(true);
 
   // Navigation, then network capture of that navigation
-  r = await call('browser_navigate', { url: `${SITE_B}/cross.html` });
+  r = await call('browser_navigate', { url: `http://127.0.0.1:${FIXTURE_PORT + 1}/cross.html` });
   expect(r.text).toContain('Form trong iframe');
   r = await call('browser_network_requests', { filter: 'nested.html' });
   expect(r.text).toContain('nested.html');
@@ -134,7 +175,7 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
 });
 
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
-  await call('browser_navigate', { url: `${SITE_A}/sheet-host.html` });
+  await call('browser_navigate', { url: `http://localhost:${FIXTURE_PORT}/sheet-host.html` });
   let snap = (await call('browser_snapshot')).text;
   const grid = refOf(snap, 'size=600x264', 'canvas');
   expect(grid).toMatch(/^f\d+e\d+$/); // inside the cross-origin iframe

@@ -64,6 +64,7 @@ export type RuntimeMessage =
   | { type: 'connect'; password?: string }
   | { type: 'logout' }
   | { type: 'reconnect' }
+  | { type: 'set-local'; enabled: boolean }
   | { type: 'get-state' };
 
 export interface ActivityEntry {
@@ -73,7 +74,7 @@ export interface ActivityEntry {
   ok: boolean;
 }
 
-export type ConnectionStatus = 'signed-out' | 'connecting' | 'connected' | 'offline' | 'replaced' | 'not-allowed';
+export type ConnectionStatus = 'signed-out' | 'connecting' | 'connected' | 'offline' | 'replaced' | 'not-allowed' | 'off';
 
 export interface PopupState {
   status: ConnectionStatus;
@@ -83,4 +84,6 @@ export interface PopupState {
   gateway: string;
   log: ActivityEntry[];
   lastError?: string;
+  /** Local mode: connection to an MCP server running on this machine. `connecting` means waiting for it to start. */
+  local: { enabled: boolean; status: ConnectionStatus; port: number };
 }

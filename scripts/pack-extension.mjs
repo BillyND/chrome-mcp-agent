@@ -1,6 +1,7 @@
 // Builds the extension into extension/unpacked and packs extension/chrome-mcp-agent.zip.
-// Usage: node scripts/pack-extension.mjs [--dev] [--gateway https://...]
-//   --dev      points at http://localhost:8787 (used by the e2e tests)
+// Usage: [HELMSMAN_PORT=47821] node scripts/pack-extension.mjs [--dev] [--gateway https://...]
+//   HELMSMAN_PORT  port of the local MCP server the extension's "Local mode" connects to
+//   --dev      points at http://localhost:$E2E_PORT (default 8787; used by the e2e tests)
 //   --gateway  overrides the gateway origin; defaults to PUBLIC_URL in worker/wrangler.jsonc
 
 import { execFileSync } from 'node:child_process';
@@ -25,6 +26,7 @@ function gatewayFromWrangler() {
   return m?.[1];
 }
 
+const localPort = Number(process.env.HELMSMAN_PORT ?? 47821);
 const gateway = (argv.includes('--dev') ? `http://localhost:${process.env.E2E_PORT ?? 8787}` : flag('--gateway') ?? gatewayFromWrangler() ?? '').replace(/\/$/, '');
 if (!/^https?:\/\//.test(gateway) || gateway.includes('REPLACE')) {
   console.error(`Gateway URL is not set (got "${gateway}"). Deploy the worker first or pass --gateway https://...`);
@@ -39,7 +41,7 @@ const common = {
   target: 'chrome125',
   minify: !argv.includes('--dev'),
   sourcemap: argv.includes('--dev') ? 'inline' : false,
-  define: { __GATEWAY_URL__: JSON.stringify(gateway) },
+  define: { __GATEWAY_URL__: JSON.stringify(gateway), __LOCAL_PORT__: String(localPort) },
   logLevel: 'warning',
 };
 await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/background/index.ts')], outfile: path.join(out, 'background.js'), format: 'esm' });
