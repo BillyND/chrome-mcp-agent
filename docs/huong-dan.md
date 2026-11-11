@@ -8,7 +8,7 @@ ChatGPT ──MCP + OAuth──► Cloudflare Worker (/mcp) ──► Durable Ob
 
 - **Gateway** (`worker/`): Cloudflare Workers + Durable Objects, gói Free. OAuth 2.1 cho ChatGPT, nối với đúng Chrome bằng mã kết nối. Mỗi Chrome có một Durable Object giữ WebSocket bằng Hibernation API. Ping 20 giây/lần được runtime tự trả lời, nên kết nối luôn ấm mà không tốn hạn mức. Lệnh chỉ-đọc tự gửi lại nếu Chrome nối lại giữa chừng.
 - **Extension** (`extension/`): Manifest V3. Thao tác bằng Chrome DevTools Protocol nên trang nhận sự kiện "thật". Content script chạy trong mọi frame. Mỗi iframe tự định vị qua `postMessage` nên toạ độ đúng cả khi khác domain.
-- **Tool**: 20 tool đặt tên theo kiểu Playwright MCP (`browser_snapshot`, `browser_click`, `browser_type`, `browser_fill_form`, …). Danh sách đầy đủ ở `shared/tools.ts`.
+- **Tool**: hơn 30 tool đặt tên theo kiểu Playwright MCP (`browser_snapshot`, `browser_click`, `browser_type`, `browser_fill_form`, …). Danh sách đầy đủ ở `shared/tools.ts`.
 
 ## Đang chạy
 
@@ -84,9 +84,27 @@ args = ["-y", "helmsman-mcp"]
 **Biến môi trường** (đặt trong `env` của cấu hình client):
 
 - `HELMSMAN_PORT`: đổi cổng (mặc định `47821`). Extension bản build sẵn dùng cổng mặc định; muốn đổi cổng phải đóng gói lại extension với cùng biến: `HELMSMAN_PORT=47900 node scripts/pack-extension.mjs`.
+- `HELMSMAN_PROFILE`: `core` chỉ quảng bá 13 tool dùng nhiều nhất, mặc định `full`.
 - `HELMSMAN_EXTENSION_ID`: chỉ nhận kết nối từ đúng extension có id này (mặc định nhận mọi origin `chrome-extension://`).
 
 **Bảo mật và đánh đổi.** Server chỉ lắng nghe `127.0.0.1`, kiểm tra header `Host` (chặn DNS rebinding) và từ chối mọi WebSocket có `Origin` không phải `chrome-extension://…`, nên trang web không nối vào được. Không dùng token: bất kỳ extension Chrome nào khác trên máy cũng có origin `chrome-extension://` và có thể kết nối nếu giành được cổng trước extension này; tiến trình khác trên máy cũng gọi được qua `/peer`. Chấp nhận được với máy cá nhân; nếu cần chặt hơn, đặt `HELMSMAN_EXTENSION_ID`. Công tắc **Cho phép AI điều khiển** áp dụng cho cả hai chế độ. Lệnh gọi mang tên `local:<tên client>` (ví dụ `local:claude-code`) để phân biệt các agent.
+
+## Tiết kiệm token, bí mật và quy trình đã lưu
+
+**Snapshot gọn.** Sau khi agent đã có một `browser_snapshot` của tab, mọi thao tác (bấm, gõ…) chỉ trả về *phần thay đổi* so với snapshot đó: dòng `+` mới, `-` mất, `~` đổi, kèm tiêu đề `+12 −3 ~5 lines; unchanged: N`. Ref ổn định nên ref cũ vẫn dùng được. Nếu diff không nhỏ hơn rõ rệt (dưới 80% bản đầy đủ) hoặc trang đã điều hướng thì trả bản đầy đủ. `browser_snapshot` có thêm: `mode: "diff"`, `ref` (chỉ một nhánh, dùng được cả trong iframe), `depth`, `interactiveOnly` (chỉ phần tử bấm được và heading), `maxChars`. Trạng thái diff nằm trong bộ nhớ của extension theo từng tab và từng agent, xoá khi điều hướng.
+
+**Ngân sách đầu ra.** Không tool nào trả quá 40.000 ký tự. Phần dài hơn bị cắt, ghi chú cuối kết quả cho biết `handle` và `offset`; toàn văn nằm trong extension (không gửi cho model) và đọc tiếp bằng `browser_read_more {handle, offset}`. Handle chỉ của agent tạo ra nó, tối đa 16 cái gần nhất, mất khi service worker khởi động lại.
+
+**Bộ tool `core` / `full`.** Mặc định là `full` (tất cả tool). `core` chỉ có 13 tool dùng nhiều nhất (tabs, navigate, snapshot, read_more, click, type, fill_form, press_key, scroll, screenshot, find, wait_for, secrets_list) để giảm token cho danh sách tool.
+
+- Cloud: thêm `?profile=core` vào URL MCP, ví dụ `https://…/mcp?profile=core` (bỏ đi hoặc `profile=full` là đầy đủ).
+- Local: đặt `HELMSMAN_PROFILE=core` trong `env` của cấu hình client.
+
+**Kho bí mật.** Trong popup, mục **Bí mật** (Secrets) lưu tên và giá trị trong `chrome.storage.local` của trình duyệt này, không bao giờ gửi lên gateway hay model. Model gõ `{{secret:TÊN}}` trong `browser_type` / `browser_fill_form`; extension thay giá trị thật ngay lúc nhập vào trang và che mọi giá trị thật trong kết quả của mọi tool (snapshot, `browser_get_text`, `browser_evaluate`, console, network, URL ở tiêu đề…), kể cả dạng JSON-escape, URL-encode và HTML-escape. `browser_secrets_list` chỉ trả tên. `{{secret:…}}` bị từ chối ở mọi tool khác (URL, script, cookie…). Giới hạn: một script do model viết vẫn có thể biến đổi giá trị (đảo chuỗi, cắt từng ký tự) trước khi trả về; giá trị ngắn hơn 3 ký tự không được nhận; ảnh chụp màn hình không che được.
+
+**Quy trình đã lưu.** `browser_workflow`: `start_recording {name}`, rồi agent làm việc bình thường, mỗi thao tác thành công được ghi lại (phần tử lưu bằng role + tên + đường dẫn iframe, không lưu ref nên chạy lại vẫn đúng sau khi tải lại trang). `stop_recording {params: {thanh_pho: "Hà Nội"}}` lưu lại và biến giá trị đã gõ thành tham số `{{param:thanh_pho}}`. `run {name, params}` chạy từng bước, tìm lại phần tử, dừng và báo rõ ở bước lỗi đầu tiên. `list` (thêm `name` để xem các bước) và `delete`. Dữ liệu nằm trong `chrome.storage.local`. Quy trình chạy trong tab mặc định của agent.
+
+Quy trình cũng được cung cấp dưới dạng **MCP prompts** (`prompts/list`, `prompts/get`), kể cả ở chế độ cloud không trạng thái: gateway không lưu gì, mỗi lần client hỏi nó gọi extension qua đúng đường relay của tool (`browser_workflow list`) để lấy danh sách rồi dựng hướng dẫn "hãy chạy workflow X với tham số…". Nếu Chrome không kết nối thì danh sách prompt rỗng.
 
 ## Quản trị
 
