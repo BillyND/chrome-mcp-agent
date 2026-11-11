@@ -89,12 +89,12 @@ export async function showAgentBar(tabId: number, label: string) {
   await overlay(tabId, { type: 'show', label, paused: state.paused });
 }
 
-async function glide(tabId: number, x: number, y: number, label?: string) {
+async function glide(tabId: number, x: number, y: number) {
   const prev = lastCursor.get(tabId);
-  const dist = prev ? Math.hypot(prev.x - x, prev.y - y) : 400;
-  const durationMs = Math.round(Math.min(650, Math.max(180, dist * 0.7)));
+  const dist = prev ? Math.hypot(prev.x - x, prev.y - y) : 500;
+  const durationMs = Math.round(Math.min(900, Math.max(360, 320 + dist * 0.5)));
   await overlay(tabId, { type: 'avoid', x, y });
-  await overlay(tabId, { type: 'move', x, y, label, durationMs });
+  await overlay(tabId, { type: 'move', x, y, durationMs });
   lastCursor.set(tabId, { x, y });
 }
 
@@ -140,14 +140,6 @@ async function locate(tabId: number, ref: string, scroll = true): Promise<Target
     x: Math.round(offset.x + prep.point.x),
     y: Math.round(offset.y + prep.point.y),
   };
-}
-
-async function highlightTarget(tabId: number, t: Target) {
-  const offset = { x: t.x - t.prep.point.x, y: t.y - t.prep.point.y };
-  await overlay(tabId, {
-    type: 'highlight',
-    rect: { x: t.prep.rect.x + offset.x, y: t.prep.rect.y + offset.y, width: t.prep.rect.width, height: t.prep.rect.height },
-  });
 }
 
 // ---- raw input ----------------------------------------------------------------
@@ -472,8 +464,7 @@ const TOOLS: Record<string, ToolFn> = {
   async browser_click(args) {
     const tab = await prepareTab(args, `Bấm ${args.element ?? args.ref}`);
     const t = await locate(tab.id!, args.ref);
-    await highlightTarget(tab.id!, t);
-    await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
+    await glide(tab.id!, t.x, t.y);
     checkAbort();
     const fallback = await clickTarget(tab.id!, t, { button: args.button, clickCount: args.doubleClick ? 2 : 1, modifiers: args.modifiers });
     await sleep(250);
@@ -484,8 +475,7 @@ const TOOLS: Record<string, ToolFn> = {
   async browser_hover(args) {
     const tab = await prepareTab(args, `Rê chuột ${args.element ?? args.ref}`);
     const t = await locate(tab.id!, args.ref);
-    await highlightTarget(tab.id!, t);
-    await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
+    await glide(tab.id!, t.x, t.y);
     await mouse(tab.id!, 'mouseMoved', t.x, t.y);
     await sleep(400);
     return afterAction(tab, `Hovering over ${t.prep.label}.`);
@@ -494,8 +484,7 @@ const TOOLS: Record<string, ToolFn> = {
   async browser_type(args) {
     const tab = await prepareTab(args, `Gõ vào ${args.element ?? args.ref}`);
     const t = await locate(tab.id!, args.ref);
-    await highlightTarget(tab.id!, t);
-    await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
+    await glide(tab.id!, t.x, t.y);
     checkAbort();
     await clickTarget(tab.id!, t);
     await sleep(80);
@@ -521,8 +510,7 @@ const TOOLS: Record<string, ToolFn> = {
     for (const field of (args.fields ?? []) as Args[]) {
       checkAbort();
       const t = await locate(tab.id!, field.ref);
-      await highlightTarget(tab.id!, t);
-      await glide(tab.id!, t.x, t.y, field.element ?? t.prep.label);
+      await glide(tab.id!, t.x, t.y);
       const value = field.value;
       const isToggle = t.prep.inputType === 'checkbox' || t.prep.inputType === 'radio' || t.prep.checked !== undefined;
       if (t.prep.tag === 'select') {
@@ -549,8 +537,7 @@ const TOOLS: Record<string, ToolFn> = {
   async browser_select_option(args) {
     const tab = await prepareTab(args, `Chọn ${args.values?.join(', ')}`);
     const t = await locate(tab.id!, args.ref);
-    await highlightTarget(tab.id!, t);
-    await glide(tab.id!, t.x, t.y, args.element ?? t.prep.label);
+    await glide(tab.id!, t.x, t.y);
     const res = await frameCall<string>(tab.id!, t.frameId, { cmd: 'select-option', ref: t.local, values: (args.values ?? []).map(String) });
     return afterAction(tab, `${res} in ${t.prep.label}.`);
   },
@@ -566,8 +553,7 @@ const TOOLS: Record<string, ToolFn> = {
     const tab = await prepareTab(args, 'Cuộn trang');
     if (args.toRef) {
       const t = await locate(tab.id!, args.toRef, true);
-      await highlightTarget(tab.id!, t);
-      await glide(tab.id!, t.x, t.y, t.prep.label);
+      await glide(tab.id!, t.x, t.y);
       return afterAction(tab, `Scrolled ${t.prep.label} into view.`);
     }
     const amount = Number(args.amount ?? 600);
@@ -584,7 +570,7 @@ const TOOLS: Record<string, ToolFn> = {
       x = Math.round(vp.clientWidth / 2);
       y = Math.round(vp.clientHeight / 2);
     }
-    await glide(tab.id!, x, y, `Cuộn ${dir}`);
+    await glide(tab.id!, x, y);
     const before = await frameCall<any>(tab.id!, 0, { cmd: 'scroll-info' }).catch(() => null);
     await mouse(tab.id!, 'mouseWheel', x, y, { deltaX: dx, deltaY: dy });
     await sleep(350);
@@ -601,7 +587,7 @@ const TOOLS: Record<string, ToolFn> = {
   async browser_drag(args) {
     const tab = await prepareTab(args, 'Kéo thả');
     const a = await locate(tab.id!, args.startRef);
-    await glide(tab.id!, a.x, a.y, args.startElement ?? a.prep.label);
+    await glide(tab.id!, a.x, a.y);
     const tabId = tab.id!;
     const session = sessionOf(tabId);
     if (session) session.dragData = undefined;
@@ -616,7 +602,7 @@ const TOOLS: Record<string, ToolFn> = {
       await mouse(tabId, 'mouseMoved', x, y, { button: 'left', buttons: 1 });
       if (i === 1) await sleep(60);
     }
-    await overlay(tabId, { type: 'move', x: b.x, y: b.y, durationMs: 250, label: args.endElement ?? b.prep.label });
+    await overlay(tabId, { type: 'move', x: b.x, y: b.y, durationMs: 300 });
     lastCursor.set(tabId, { x: b.x, y: b.y });
     const data = sessionOf(tabId)?.dragData;
     if (data) {

@@ -1,22 +1,20 @@
-// The visible side of the agent, drawn in the top frame only: a purple cursor
-// that glides to each target before the real input event fires, a highlight
-// box, a click ripple, and a bar with a Stop button.
+// The visible side of the agent, drawn in the top frame only: a cursor that
+// glides to each target before the real input event fires, and a bar with a
+// Stop button.
+// Motion follows the Codex Computer Use style: a curved path (quadratic Bézier
+// bowed to one side) timed by a lightly damped spring, with the pointer tilting
+// into the direction of travel and a small press on click.
 // Everything lives in a closed shadow root with pointer-events: none (except
 // the bar's buttons) so it never changes what the page receives.
 
-import type { OverlayAction, Rect } from '../messages';
+import type { OverlayAction } from '../messages';
 
 const CSS = `
 :host{all:initial}
 .layer{position:fixed;inset:0;pointer-events:none;z-index:2147483647;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-.cursor{position:fixed;left:0;top:0;width:26px;height:26px;transform:translate(-100px,-100px);transition-property:transform;transition-timing-function:cubic-bezier(.22,.8,.26,1);filter:drop-shadow(0 3px 6px rgba(49,46,129,.45));will-change:transform}
-.cursor svg{display:block}
-.tag{position:absolute;left:22px;top:20px;white-space:nowrap;max-width:260px;overflow:hidden;text-overflow:ellipsis;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#fff;font-weight:600;font-size:12px;padding:4px 9px;border-radius:999px;box-shadow:0 4px 14px rgba(79,70,229,.35);opacity:0;transition:opacity .2s}
-.tag.on{opacity:1}
-.ripple{position:fixed;width:34px;height:34px;margin:-17px 0 0 -17px;border-radius:50%;border:2px solid #7c3aed;animation:r .5s ease-out forwards}
-@keyframes r{from{transform:scale(.3);opacity:1}to{transform:scale(1.6);opacity:0}}
-.hl{position:fixed;border:2px solid #7c3aed;border-radius:6px;background:rgba(124,58,237,.08);box-shadow:0 0 0 4px rgba(124,58,237,.12);transition:all .18s ease;opacity:0}
-.hl.on{opacity:1}
+.cursor{position:fixed;left:0;top:0;width:26px;height:26px;transform:translate(-100px,-100px);will-change:transform;opacity:0;transition:opacity .25s ease}
+.cursor.on{opacity:1}
+.cursor svg{display:block;transform-origin:3px 2px;filter:drop-shadow(0 4px 8px rgba(30,27,75,.35)) drop-shadow(0 1px 1px rgba(0,0,0,.25))}
 .bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(20px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;border-radius:14px;background:rgba(17,19,30,.92);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.3);backdrop-filter:blur(8px);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
 .bar.top{bottom:auto;top:18px}
 .bar.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
@@ -33,18 +31,20 @@ button{all:unset;cursor:pointer;font-weight:600;font-size:12px;padding:6px 12px;
 const CURSOR_SVG = `<svg width="26" height="26" viewBox="0 0 26 26"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs><path d="M3 2.5 22 11.2l-8.1 2.3-3.7 7.8z" fill="url(#g)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
 
 let host: HTMLElement | null = null;
-let parts: { cursor: HTMLElement; tag: HTMLElement; hl: HTMLElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement; layer: HTMLElement } | null = null;
-let pos = { x: -100, y: -100 };
+let parts: { cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement } | null = null;
+let pos: { x: number; y: number } | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
+let frame = 0;
 let paused = false;
+let bowSide = 1;
 
 function ensure() {
   if (parts && host?.isConnected) return parts;
   host = document.createElement('chrome-mcp-agent-overlay');
   const root = host.attachShadow({ mode: 'closed' });
-  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="hl"></div><div class="cursor">${CURSOR_SVG}<div class="tag"></div></div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div></div>`;
-  const q = <T extends HTMLElement>(s: string) => root.querySelector(s) as T;
-  parts = { layer: q('.layer'), cursor: q('.cursor'), tag: q('.tag'), hl: q('.hl'), bar: q('.bar'), txt: q('.txt'), btn: q('button') };
+  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor">${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div></div>`;
+  const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;
+  parts = { cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button') };
   parts.btn.addEventListener('click', (e) => {
     e.stopPropagation();
     chrome.runtime.sendMessage({ type: paused ? 'resume' : 'stop' }).catch(() => {});
@@ -69,56 +69,83 @@ function renderBar(label: string) {
   p.bar.classList.add('on');
 }
 
+function hideAll() {
+  if (!parts) return;
+  parts.bar.classList.remove('on');
+  parts.cursor.classList.remove('on');
+}
+
 function scheduleHide() {
   clearTimeout(hideTimer);
   if (paused) return;
-  hideTimer = setTimeout(() => {
-    if (!parts) return;
-    parts.bar.classList.remove('on');
-    parts.tag.classList.remove('on');
-    parts.hl.classList.remove('on');
-    parts.cursor.style.opacity = '0';
-  }, 8000);
+  hideTimer = setTimeout(hideAll, 8000);
+}
+
+function place(x: number, y: number, tilt = 0, scale = 1) {
+  const p = ensure();
+  p.cursor.style.transform = `translate(${x - 3}px,${y - 2}px)`;
+  p.arrow.style.transform = `rotate(${tilt}deg) scale(${scale})`;
+}
+
+/** Lightly damped spring step response: starts fast, settles with a hint of overshoot. */
+function spring(t: number): number {
+  const zeta = 0.78;
+  const omega = 9.5;
+  const wd = omega * Math.sqrt(1 - zeta * zeta);
+  const decay = Math.exp(-zeta * omega * t);
+  return 1 - decay * (Math.cos(wd * t) + ((zeta * omega) / wd) * Math.sin(wd * t));
 }
 
 function moveTo(x: number, y: number, durationMs: number): Promise<void> {
   const p = ensure();
-  p.cursor.style.opacity = '1';
-  // Start from the last known spot even after navigation recreated the overlay.
-  if (pos.x < 0) {
-    p.cursor.style.transitionDuration = '0ms';
-    p.cursor.style.transform = `translate(${window.innerWidth / 2}px,${window.innerHeight - 60}px)`;
-    void p.cursor.offsetWidth;
-  }
-  p.cursor.style.transitionDuration = `${durationMs}ms`;
-  p.cursor.style.transform = `translate(${x - 3}px,${y - 2}px)`;
+  cancelAnimationFrame(frame);
+  p.cursor.classList.add('on');
+  // Enter from the lower middle of the viewport the first time (or after navigation).
+  const from = pos ?? { x: innerWidth / 2, y: innerHeight - 80 };
+  const dx = x - from.x;
+  const dy = y - from.y;
+  const dist = Math.hypot(dx, dy);
   pos = { x, y };
-  return new Promise((r) => setTimeout(r, durationMs));
-}
-
-function highlight(rect: Rect | null) {
-  const p = ensure();
-  if (!rect) {
-    p.hl.classList.remove('on');
-    return;
+  if (dist < 2) {
+    place(x, y);
+    return Promise.resolve();
   }
-  Object.assign(p.hl.style, {
-    left: `${rect.x - 3}px`,
-    top: `${rect.y - 3}px`,
-    width: `${rect.width + 6}px`,
-    height: `${rect.height + 6}px`,
+  // Bow the path to alternating sides, more for longer moves, like a hand sweeping the mouse.
+  bowSide = -bowSide;
+  const bow = Math.min(140, dist * 0.22) * bowSide;
+  const cx = from.x + dx / 2 + (-dy / dist) * bow;
+  const cy = from.y + dy / 2 + (dx / dist) * bow;
+  const duration = Math.max(240, durationMs);
+  const start = performance.now();
+  return new Promise((resolve) => {
+    let lastX = from.x;
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      // A gentle ease-in before the spring so the cursor accelerates instead of jumping off.
+      const k = t >= 1 ? 1 : spring(Math.pow(t, 1.35) * 1.15);
+      const u = 1 - k;
+      const px = u * u * from.x + 2 * u * k * cx + k * k * x;
+      const py = u * u * from.y + 2 * u * k * cy + k * k * y;
+      // Tilt into horizontal motion, relaxing to upright as it arrives.
+      const vx = px - lastX;
+      lastX = px;
+      const tilt = Math.max(-14, Math.min(14, vx * 1.6)) * (1 - t);
+      place(px, py, tilt);
+      if (t < 1) frame = requestAnimationFrame(tick);
+      else {
+        place(x, y, 0);
+        resolve();
+      }
+    };
+    frame = requestAnimationFrame(tick);
   });
-  p.hl.classList.add('on');
 }
 
-function ripple(x: number, y: number) {
-  const p = ensure();
-  const r = document.createElement('div');
-  r.className = 'ripple';
-  r.style.left = `${x}px`;
-  r.style.top = `${y}px`;
-  p.layer.appendChild(r);
-  setTimeout(() => r.remove(), 600);
+function press() {
+  if (!pos) return;
+  const { x, y } = pos;
+  place(x, y, 0, 0.82);
+  setTimeout(() => place(x, y, 0, 1), 110);
 }
 
 export async function runOverlay(action: OverlayAction): Promise<void> {
@@ -128,20 +155,11 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
       paused = action.paused;
       renderBar(action.label);
       break;
-    case 'move': {
-      const p = ensure();
-      if (action.label) {
-        p.tag.textContent = action.label;
-        p.tag.classList.add('on');
-      }
+    case 'move':
       await moveTo(action.x, action.y, action.durationMs);
       break;
-    }
     case 'click':
-      ripple(action.x, action.y);
-      break;
-    case 'highlight':
-      highlight(action.rect);
+      press();
       break;
     case 'avoid': {
       // Move the bar out of the way when the agent needs to click underneath it.
@@ -153,12 +171,7 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
     }
     case 'hide':
       paused = false;
-      if (parts) {
-        parts.bar.classList.remove('on');
-        parts.tag.classList.remove('on');
-        parts.hl.classList.remove('on');
-        parts.cursor.style.opacity = '0';
-      }
+      hideAll();
       return;
   }
   scheduleHide();

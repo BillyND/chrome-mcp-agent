@@ -43,9 +43,8 @@ export type FrameRequest =
 
 export type OverlayAction =
   | { type: 'show'; label: string; paused: boolean }
-  | { type: 'move'; x: number; y: number; label?: string; durationMs: number }
+  | { type: 'move'; x: number; y: number; durationMs: number }
   | { type: 'click'; x: number; y: number }
-  | { type: 'highlight'; rect: Rect | null }
   | { type: 'hide' }
   | { type: 'avoid'; x: number; y: number };
 
