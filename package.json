@@ -1,0 +1,30 @@
+{
+  "name": "chrome-mcp-agent",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev --config worker/wrangler.jsonc --port 8787",
+    "pack:ext": "node scripts/pack-extension.mjs",
+    "typecheck": "tsc -p worker && tsc -p extension",
+    "test": "vitest run",
+    "test:e2e": "node scripts/pack-extension.mjs --dev && playwright test",
+    "deploy": "wrangler deploy --config worker/wrangler.jsonc",
+    "setup": "node scripts/setup.mjs"
+  },
+  "dependencies": {
+    "@cloudflare/workers-oauth-provider": "^1.2.4",
+    "@modelcontextprotocol/server": "^2.4.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261110.1",
+    "@playwright/test": "^1.65.0",
+    "@types/chrome": "^0.3.7",
+    "@types/node": "^26.6.6",
+    "esbuild": "^0.28.2",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0",
+    "wrangler": "^4.160.1"
+  }
+}

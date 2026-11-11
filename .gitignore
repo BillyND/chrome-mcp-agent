@@ -1,0 +1,9 @@
+node_modules/
+extension/unpacked/
+extension/*.zip
+worker/.dev.vars
+.wrangler/
+worker/.wrangler/
+test-results/
+playwright-report/
+secrets.local.json
