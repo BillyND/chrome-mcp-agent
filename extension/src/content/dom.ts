@@ -146,11 +146,16 @@ function byIds(el: Element, attr: string): string {
     .join(' ');
 }
 
+/** A label's own words: a wrapped <select> or <textarea> would otherwise add all its options to the name. */
+function labelText(label: HTMLLabelElement): string {
+  return [...label.childNodes].map((n) => (n instanceof Element && n.matches('select,textarea,input,button,option') ? '' : n.textContent)).join(' ');
+}
+
 export function accessibleName(el: Element): string {
   const fromAria = clean(el.getAttribute('aria-label')) || clean(byIds(el, 'aria-labelledby'));
   if (fromAria) return fromAria;
   if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
-    const labels = el.labels ? [...el.labels].map((l) => l.textContent).join(' ') : '';
+    const labels = el.labels ? [...el.labels].map(labelText).join(' ') : '';
     if (clean(labels)) return clean(labels);
     if (el instanceof HTMLInputElement && ['button', 'submit', 'reset'].includes(el.type)) {
       return clean(el.value) || el.type;

@@ -111,36 +111,35 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   r = await call('browser_click', { ref: refOf(snap, 'Nút cùng nguồn', 'button') });
   expect(r.text).toContain('Cùng nguồn OK');
 
-  // Cross-origin iframe: type and submit
-  snap = r.text;
+  // Cross-origin iframe: type and submit. Action results only carry what changed, so refs keep coming from the snapshot.
   const emailRef = refOf(snap, 'Email trong iframe', 'textbox');
   expect(emailRef).toMatch(/^f\d+e\d+$/);
   r = await call('browser_type', { element: 'Email trong iframe', ref: emailRef, text: 'ban@vidu.vn' });
-  r = await call('browser_click', { ref: refOf(r.text, 'Gửi iframe', 'button') });
+  r = await call('browser_click', { ref: refOf(snap, 'Gửi iframe', 'button') });
   expect(r.text).toContain('Đã gửi: ban@vidu.vn');
 
   // Nested iframe (localhost inside 127.0.0.1 inside localhost)
-  r = await call('browser_click', { ref: refOf(r.text, 'Nút lồng', 'button') });
+  r = await call('browser_click', { ref: refOf(snap, 'Nút lồng', 'button') });
   expect(r.text).toContain('Lồng OK');
 
   // Keyboard shortcut reaches the page
-  await call('browser_click', { ref: refOf(r.text, 'Tăng', 'button') });
+  await call('browser_click', { ref: refOf(snap, 'Tăng', 'button') });
   r = await call('browser_press_key', { key: 'Shift+ArrowDown' });
   expect(r.text).toContain('Phím: Shift+ArrowDown');
 
   // JS dialog
-  r = await call('browser_click', { ref: refOf(r.text, 'Hỏi xác nhận', 'button') });
+  r = await call('browser_click', { ref: refOf(snap, 'Hỏi xác nhận', 'button') });
   expect(r.text).toContain('confirm dialog is open');
   r = await call('browser_handle_dialog', { accept: true });
   expect(r.text).toContain('Xác nhận: có');
 
   // HTML5 drag and drop
-  r = await call('browser_drag', { startRef: refOf(r.text, 'Kéo tôi'), endRef: refOf(r.text, 'Vùng thả') });
+  r = await call('browser_drag', { startRef: refOf(snap, 'Kéo tôi'), endRef: refOf(snap, 'Vùng thả') });
   expect(r.text).toContain('Đã thả: drag');
 
   // File upload from base64
   r = await call('browser_file_upload', {
-    ref: refOf(r.text, 'Chọn file'),
+    ref: refOf(snap, 'Chọn file'),
     files: [{ name: 'ghi-chu.txt', mimeType: 'text/plain', base64: Buffer.from('xin chào').toString('base64') }],
   });
   expect(r.isError).toBeFalsy();

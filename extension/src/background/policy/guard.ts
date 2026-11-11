@@ -178,20 +178,24 @@ async function pageGates(tabId: number): Promise<PageGates> {
 }
 
 /**
- * Last step of every call: re-checks the site the tab ended up on (a redirect or link may have led somewhere blocked),
- * wraps what came from the page in the untrusted envelope, and adds Helmsman's own notes outside it.
+ * Last step of a tool run: re-checks the site the tab ended up on (a redirect or link may have led somewhere blocked)
+ * and queues the login / CAPTCHA hint. The content itself is sealed later, see seal().
  */
 export async function finish(ctx: ToolCtx, tool: string, content: ToolContent[]): Promise<ToolContent[]> {
-  const notes = [...ctx.notes];
   if (ctx.tabId >= 0) {
     const tab = await chrome.tabs.get(ctx.tabId).catch(() => null);
     if (tab?.url) await siteGate(ctx, tab.url);
     // A page blocked by an open JS dialog cannot answer frame calls; skip the check until the dialog is handled.
     if (tool !== 'browser_request_user' && tab && !sessionOf(ctx.tabId)?.dialog) {
       const gates = await pageGates(ctx.tabId);
-      if (gates.password || gates.captcha) notes.push(HANDBACK_HINT);
+      if (gates.password || gates.captcha) ctx.notes.push(HANDBACK_HINT);
     }
   }
+  return content;
+}
+
+/** Wraps what came from the page in the untrusted envelope and puts Helmsman's own notes in front, outside it. */
+export function seal(content: ToolContent[], notes: string[]): ToolContent[] {
   const wrapped = content.map((c) => (c.type === 'text' ? { ...c, text: wrapUntrusted(c.text) } : c));
   return notes.length ? [{ type: 'text', text: notes.join('\n') }, ...wrapped] : wrapped;
 }

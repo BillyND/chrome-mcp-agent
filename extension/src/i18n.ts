@@ -91,6 +91,14 @@ const en = {
   approval_approved: 'Approved',
   approval_declined: 'Declined',
   approval_timeout: 'Timed out',
+  secrets: 'Secrets',
+  secretsHint: 'Saved only in this browser. The AI types them as {{secret:NAME}} and never sees the value.',
+  noSecrets: 'No secrets yet',
+  secretName: 'Name, e.g. GITHUB_PASSWORD',
+  secretValue: 'Value',
+  secretSave: 'Save secret',
+  secretDelete: 'Delete',
+  secretInvalid: 'Use a name of letters, digits, _ . - and a value of at least {n} characters.',
 };
 
 const vi: typeof en = {
@@ -180,6 +188,14 @@ const vi: typeof en = {
   approval_approved: 'Đã đồng ý',
   approval_declined: 'Đã từ chối',
   approval_timeout: 'Hết giờ',
+  secrets: 'Bí mật',
+  secretsHint: 'Chỉ lưu trong trình duyệt này. AI gõ chúng bằng {{secret:TÊN}} và không bao giờ thấy giá trị.',
+  noSecrets: 'Chưa có bí mật nào',
+  secretName: 'Tên, ví dụ GITHUB_PASSWORD',
+  secretValue: 'Giá trị',
+  secretSave: 'Lưu',
+  secretDelete: 'Xóa',
+  secretInvalid: 'Tên gồm chữ, số, _ . - và giá trị từ {n} ký tự trở lên.',
 };
 
 export type Key = keyof typeof en;

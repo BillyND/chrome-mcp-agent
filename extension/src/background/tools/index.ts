@@ -5,10 +5,16 @@
 // input on a tab never interleave. Calls without a tab queue per agent.
 
 import type { ToolContent } from '../../../../shared/protocol';
-import { finish, failureText, siteGate } from '../policy/guard';
+import { finish, failureText, seal, siteGate } from '../policy/guard';
 import { targetUrlsOf } from '../policy/site-rules';
 import type { ActivityEntry } from '../../messages';
+import { protectContent } from '../output/protect';
+import { outputTools } from '../output/tools';
+import { assertSecretsAllowed, secretsTools } from '../secrets/tools';
+import { setRunningAgent } from '../snapshot/session';
 import { pausedLoaded, state } from '../state';
+import { beginStep } from '../workflows/recorder';
+import { workflowTools } from '../workflows/tools';
 import { DEFAULT_AGENT } from './agent-id';
 import { browserDataTools } from './browser-data';
 import { captureTools } from './capture';
@@ -49,6 +55,10 @@ const TOOLS: Record<string, ToolSpec> = {
   ...emulationTools,
   ...browserDataTools,
   ...handbackTools,
+  ...outputTools,
+  ...secretsTools,
+  // Replays call tools like any agent would, but must not be recorded as steps themselves.
+  ...workflowTools((tool, args, agent) => execute(tool, args, agent, false)),
 };
 
 export const TOOL_NAMES = Object.keys(TOOLS);
@@ -62,13 +72,32 @@ export interface ToolResult {
   audit: Pick<ActivityEntry, 'host' | 'outcome' | 'approval'>;
 }
 
-const failure = (message: string, audit: ToolResult['audit'] = {}): ToolResult => ({ content: text(message), isError: true, audit: { outcome: 'error', ...audit } });
+const failure = (message: string, audit: ToolResult['audit'] = {}): Executed => ({ content: text(message), isError: true, audit: { outcome: 'error', ...audit }, seal: false, notes: [] });
 
+/** Runs a tool call and applies what every result gets on the way out: secrets hidden, output budget enforced. */
 export async function runTool(
   name: string,
   args: Record<string, unknown>,
   agent: string = DEFAULT_AGENT,
 ): Promise<ToolResult> {
+  const result = await execute(name, args, agent, true);
+  // Redact and apply the output budget to the page content first, then seal it in the untrusted envelope so a truncated result still ends with its closing tag.
+  const protectedContent = await protectContent(result.content, agent, args ?? {});
+  return { content: result.seal ? seal(protectedContent, result.notes) : protectedContent, isError: result.isError, audit: result.audit };
+}
+
+interface Executed extends ToolResult {
+  /** Success results carry page content: they are sealed in the untrusted envelope after protection. */
+  seal: boolean;
+  notes: string[];
+}
+
+async function execute(
+  name: string,
+  args: Record<string, unknown>,
+  agent: string,
+  record: boolean,
+): Promise<Executed> {
   await pausedLoaded;
   if (state.paused) return failure(STOPPED);
   const spec = TOOLS[name];
@@ -81,7 +110,8 @@ export async function runTool(
   const ctx: ToolCtx = { agent, tabId: -1, signal, audit: {}, notes: [] };
   try {
     const input = (args ?? {}) as Args;
-    let lane = `agent:${agent}`;
+    assertSecretsAllowed(name, input);
+    let lane = `${spec.lane ?? 'agent'}:${agent}`;
     if (spec.scope === 'tab') {
       const tab = await resolveTab(agent, input.tabId);
       ctx.tabId = tab.id!;
@@ -90,14 +120,18 @@ export async function runTool(
     const targets = targetUrlsOf(name, input);
     const content = await scheduler.run(lane, async () => {
       if (state.paused || signal.aborted) throw new ToolError(STOPPED);
+      if (spec.scope === 'tab') setRunningAgent(ctx.tabId, agent);
       // Site rules come first: nothing touches the tab, or opens a target URL, before they pass.
       // A tab sitting on a blocked site may still be navigated away.
       const tab = ctx.tabId >= 0 && !(name === 'browser_navigate' && targets.length) ? await chrome.tabs.get(ctx.tabId).catch(() => null) : null;
       if (tab?.url) await siteGate(ctx, tab.url);
       for (const url of targets) await siteGate(ctx, url);
-      return finish(ctx, name, await spec.run(input, ctx));
+      const recorded = record ? await beginStep(agent, name, input, ctx) : undefined;
+      const result = await spec.run(input, ctx);
+      recorded?.();
+      return finish(ctx, name, result);
     });
-    return { content, audit: { outcome: 'ok', ...ctx.audit } };
+    return { content, audit: { outcome: 'ok', ...ctx.audit }, seal: true, notes: ctx.notes };
   } catch (e) {
     return failure(failureText(e), ctx.audit);
   } finally {

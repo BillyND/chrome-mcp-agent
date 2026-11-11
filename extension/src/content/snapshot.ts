@@ -7,7 +7,7 @@
 // Interactive elements get stable refs; plain text is kept so the model can read the page.
 
 import { accessibleName, children, clean, hasSize, isEditable, isInteractive, isVisible, roleOf } from './dom';
-import { pruneRefs, refFor } from './refs';
+import { pruneRefs, refFor, resolveRef } from './refs';
 import { isConcealedText } from './visibility';
 
 export const FRAME_PLACEHOLDER = (ref: string) => `⟦frame:${ref}⟧`;
@@ -59,10 +59,22 @@ function valueOf(el: Element): string {
   return '';
 }
 
-export function buildSnapshot(prefix: string): string {
+export interface SnapshotOptions {
+  /** Only this element and what it contains. */
+  ref?: string;
+  /** Nesting levels shown below the root (0 = the root level only). */
+  depth?: number;
+  /** Only actionable elements and headings. */
+  interactiveOnly?: boolean;
+}
+
+export function buildSnapshot(prefix: string, opts: SnapshotOptions = {}): string {
   pruneRefs();
   const lines: string[] = [];
+  const maxDepth = opts.depth ?? Infinity;
+  const only = !!opts.interactiveOnly;
   let truncated = false;
+  let hiddenByDepth = false;
 
   const push = (depth: number, text: string) => {
     if (lines.length >= MAX_LINES) {
@@ -73,6 +85,7 @@ export function buildSnapshot(prefix: string): string {
   };
 
   const pushText = (depth: number, raw: string) => {
+    if (only) return;
     const text = clean(raw, 400);
     if (!text) return;
     const prev = lines[lines.length - 1];
@@ -86,6 +99,10 @@ export function buildSnapshot(prefix: string): string {
 
   const walk = (node: Node, depth: number) => {
     if (truncated) return;
+    if (depth > maxDepth) {
+      hiddenByDepth ||= node instanceof Element ? !SKIP_TAGS.has(node.localName) : !!node.textContent?.trim();
+      return;
+    }
     if (node.nodeType === Node.TEXT_NODE) {
       if (isConcealedText(node.parentElement)) return;
       pushText(depth, node.textContent ?? '');
@@ -110,7 +127,8 @@ export function buildSnapshot(prefix: string): string {
       const ref = prefix + refFor(el);
       const name = accessibleName(el);
       push(depth, `iframe${name ? ` "${name}"` : ''} [ref=${ref}]:`);
-      lines.push(`${'  '.repeat(depth + 1)}${FRAME_PLACEHOLDER(ref)}`);
+      if (depth < maxDepth) lines.push(`${'  '.repeat(depth + 1)}${FRAME_PLACEHOLDER(ref)}`);
+      else hiddenByDepth = true;
       return;
     }
 
@@ -158,6 +176,11 @@ export function buildSnapshot(prefix: string): string {
       if (name) push(depth, `heading "${name}"${attrs(el, role)}`);
       return;
     }
+    if (only) {
+      // Containers and text add nothing to a list of actions: look through them.
+      for (const c of children(el)) walk(c, depth);
+      return;
+    }
     if (role === 'img') {
       const name = accessibleName(el);
       if (name) push(depth, `img "${name}"`);
@@ -184,7 +207,8 @@ export function buildSnapshot(prefix: string): string {
     for (const c of children(el)) walk(c, depth);
   };
 
-  walk(document.body ?? document.documentElement, 0);
+  walk(opts.ref ? resolveRef(opts.ref) : (document.body ?? document.documentElement), 0);
+  if (hiddenByDepth) lines.push(`- … (deeper content hidden by depth=${maxDepth}; pass a ref of a section to read it)`);
   if (truncated) lines.push(`- … (snapshot truncated after ${MAX_LINES} lines; use browser_get_text or scroll for more)`);
   return lines.join('\n');
 }

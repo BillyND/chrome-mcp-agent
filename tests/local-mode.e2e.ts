@@ -209,15 +209,16 @@ test.describe('local mode in Chromium', () => {
     expect(tabId).toBeGreaterThan(0);
     await a.call('browser_tabs', { action: 'select', tabId });
 
-    let r = await a.call('browser_snapshot');
-    expect(r.text).toContain('Form trong iframe');
-    r = await a.call('browser_click', { element: 'Tăng', ref: refOf(r.text, 'Tăng', 'button') });
+    // Action results only carry what changed since the snapshot, so refs come from the snapshot itself.
+    const snap = await a.call('browser_snapshot');
+    expect(snap.text).toContain('Form trong iframe');
+    let r = await a.call('browser_click', { element: 'Tăng', ref: refOf(snap.text, 'Tăng', 'button') });
     expect(r.text).toContain('Đếm: 1');
 
-    const emailRef = refOf(r.text, 'Email trong iframe', 'textbox');
+    const emailRef = refOf(snap.text, 'Email trong iframe', 'textbox');
     expect(emailRef).toMatch(/^f\d+e\d+$/);
     r = await a.call('browser_type', { element: 'Email trong iframe', ref: emailRef, text: 'local@vidu.vn' });
-    r = await a.call('browser_click', { ref: refOf(r.text, 'Gửi iframe', 'button') });
+    r = await a.call('browser_click', { ref: refOf(snap.text, 'Gửi iframe', 'button') });
     expect(r.text).toContain('Đã gửi: local@vidu.vn');
   });
 

@@ -4,7 +4,8 @@
 
 import { fromJsonSchema, McpServer, type JsonSchemaType } from '@modelcontextprotocol/server';
 import type { CallResult } from './relay';
-import { TOOLS } from './tools';
+import { TOOLS, toolsForProfile, type ToolProfile } from './tools';
+import { parseWorkflowDetail, parseWorkflowList, promptArguments, workflowInstruction } from './workflow-prompt';
 
 /** Runs one tool in the user's Chrome. `safeToRepeat` marks calls that may be sent twice without side effects. */
 export type ToolCaller = (tool: string, args: Record<string, unknown>, timeoutMs: number, safeToRepeat: boolean) => Promise<CallResult>;
@@ -12,8 +13,11 @@ export type ToolCaller = (tool: string, args: Record<string, unknown>, timeoutMs
 export const INSTRUCTIONS = `Helmsman controls the user's own Google Chrome (their real tabs and logged-in accounts).
 Workflow: browser_tabs (list, or "new" for a tab of your own) -> browser_snapshot -> act with refs from the latest snapshot -> snapshot again to verify.
 - Refs look like "e12" (top page) or "f3e7" (inside an iframe); iframes, including cross-origin ones, are part of the snapshot and work like normal elements.
-- Every action returns a fresh short page summary; take a new snapshot after navigation or big page changes because refs from older snapshots expire.
+- Every action returns a short page summary; once you have a snapshot of the tab it is only a diff (+ added, - removed, ~ changed lines), so keep the earlier snapshot in mind. Take a new full browser_snapshot after navigation or big page changes because refs from older snapshots expire.
 - Prefer browser_snapshot over screenshots; use browser_screenshot for visual checks (charts, captchas, layouts). Use browser_find for a quick text lookup and browser_extract for links, tables, forms and metadata.
+- Save tokens: browser_snapshot has mode "diff", ref (one subtree), interactiveOnly and depth. Output that was cut ends with a note: continue with browser_read_more {handle, offset}.
+- Secrets: never ask for passwords or API keys. If the user saved some, browser_secrets_list shows their names; type one with {{secret:NAME}} in browser_type / browser_fill_form. The real value never reaches you.
+- browser_workflow records what you do and replays it later (also offered as MCP prompts).
 Several tabs and several agents:
 - Several AI agents can use the same Chrome at once. Each has its own default tab and its own Chrome tab group (titled with the agent's name and a colour); never touch a tab another agent is using unless the user asked.
 - Calls that omit tabId act on your default tab. Pass tabId (from browser_tabs or a result's "Tab N" line) to work in a specific tab; browser_tabs "new" opens another tab of your own in the background.
@@ -29,13 +33,15 @@ Safety (enforced by the browser extension for every client):
 /** Calls that may ask the user (a site prompt, a confirmation) wait for the answer, so the relay allows that time on top. */
 export const APPROVAL_GRACE_MS = 125_000;
 
+const firstText = (r: CallResult) => r.content.find((c) => c.type === 'text')?.text;
+
 /** Pass the runtime's JSON Schema validator (Workers cannot use the default one); schemas are compiled once. */
 export function toolsServerFactory(validator?: Parameters<typeof fromJsonSchema>[1]) {
   const schemas = new Map(TOOLS.map((t) => [t.name, fromJsonSchema(t.inputSchema as JsonSchemaType, validator)]));
 
-  return (call: ToolCaller): McpServer => {
+  return (call: ToolCaller, profile: ToolProfile = 'full'): McpServer => {
     const server = new McpServer({ name: 'helmsman', version: '1.0.0' }, { instructions: INSTRUCTIONS });
-    for (const tool of TOOLS) {
+    for (const tool of toolsForProfile(profile)) {
       server.registerTool(
         tool.name,
         {
@@ -57,6 +63,38 @@ export function toolsServerFactory(validator?: Parameters<typeof fromJsonSchema>
         },
       );
     }
+    registerWorkflowPrompts(server, call);
     return server;
   };
+}
+
+/**
+ * Saved workflows live in the extension, so the lists are fetched from Chrome on demand through the
+ * same relay the tools use (this works for the stateless cloud server too: nothing is cached here).
+ */
+function registerWorkflowPrompts(server: McpServer, call: ToolCaller) {
+  const lowLevel = server.server;
+  lowLevel.registerCapabilities({ prompts: {} });
+  lowLevel.setRequestHandler('prompts/list', async () => {
+    const result = await call('browser_workflow', { action: 'list' }, 10_000, true);
+    const workflows = result.isError ? [] : parseWorkflowList(firstText(result));
+    return {
+      prompts: workflows.map((w) => ({
+        name: w.name,
+        title: w.name,
+        description: w.description || `Saved Helmsman workflow (${typeof w.steps === 'number' ? w.steps : 0} steps)`,
+        arguments: promptArguments(w),
+      })),
+    };
+  });
+  lowLevel.setRequestHandler('prompts/get', async (request) => {
+    const { name, arguments: args } = request.params;
+    const result = await call('browser_workflow', { action: 'list', name }, 10_000, true);
+    const detail = result.isError ? undefined : parseWorkflowDetail(firstText(result));
+    if (!detail) throw new Error(`No saved workflow named "${name}" (is Chrome connected?).`);
+    return {
+      description: detail.description,
+      messages: [{ role: 'user' as const, content: { type: 'text' as const, text: workflowInstruction(detail, args ?? {}) } }],
+    };
+  });
 }

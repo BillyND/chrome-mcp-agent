@@ -2,6 +2,7 @@
 
 import { frameCall } from '../frames';
 import { guardTyping } from '../policy/guard';
+import { resolveSecrets } from '../secrets/tools';
 import { clickTarget, fillTarget } from './input';
 import { locate } from './locate';
 import { afterAction } from './page-summary';
@@ -28,9 +29,10 @@ export const formTools = {
         if (t.prep.checked !== want) await clickTarget(tabId, t);
         done.push(`${t.prep.label} → ${want ? 'checked' : 'unchecked'}`);
       } else {
-        const str = Array.isArray(value) ? value.join(', ') : String(value);
-        await guardTyping(ctx, tabId, field.ref, str);
-        await fillTarget(tabId, t, str, ctx);
+        const str = Array.isArray(value) ? value.join(', ') : String(value); // what results may show: {{secret:NAME}} stays a placeholder
+        const typed = await resolveSecrets(str);
+        await guardTyping(ctx, tabId, field.ref, typed);
+        await fillTarget(tabId, t, typed, ctx);
         done.push(`${t.prep.label} = ${JSON.stringify(str.slice(0, 60))}`);
       }
       await sleep(60);
