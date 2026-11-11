@@ -131,7 +131,9 @@ async function execute(
       recorded?.();
       return finish(ctx, name, result);
     });
-    return { content, audit: { outcome: 'ok', ...ctx.audit }, seal: true, notes: ctx.notes };
+    // Helmsman's own bookkeeping (secret names, the workflow list) is machine-read JSON, not page content.
+    const own = name === 'browser_secrets_list' || (name === 'browser_workflow' && input.action !== 'run');
+    return { content, audit: { outcome: 'ok', ...ctx.audit }, seal: !own, notes: ctx.notes };
   } catch (e) {
     return failure(failureText(e), ctx.audit);
   } finally {
