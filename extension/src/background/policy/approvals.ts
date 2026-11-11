@@ -19,6 +19,7 @@ const pending = new Map<string, Pending>();
 
 const CHOICES: Record<PromptKind, Choice[]> = {
   site: ['once', 'always', 'decline'],
+  script: ['once', 'always', 'decline'],
   sensitive: ['approve', 'decline'],
   handback: ['done', 'decline'],
 };

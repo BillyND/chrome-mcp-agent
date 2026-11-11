@@ -2,10 +2,11 @@
 // It reads and prepares elements; the background performs the real input
 // events through the Chrome DevTools Protocol.
 
-import type { FrameRequest, FrameResponse, PrepareResult, RuntimeMessage } from '../messages';
+import type { FrameRequest, FrameResponse, PointProbe, PrepareResult, RuntimeMessage } from '../messages';
 import { clean, describe, isEditable, shadowRootOf } from './dom';
 import { clickableAt, describeTarget, detectGates, focusedElement } from './facts';
 import { describeRef, findByLocator } from './locator-dom';
+import { maskSecrets, unmaskSecrets } from './mask';
 import { isOverlay, runOverlay } from './overlay';
 import { extractPage, findText, hasSelector, readSelection, selectText } from './page-data';
 import { refFor, resolveRef } from './refs';
@@ -265,6 +266,13 @@ function syntheticPointer(ref: string, from: { x: number; y: number }, to: { x: 
   return true;
 }
 
+/** What a click at a point of this frame would hit: the element's facts, or the <iframe> to look into. */
+function probePoint(x: number, y: number): PointProbe {
+  const el = deepElementFromPoint(x, y) ?? document.body;
+  if (el instanceof HTMLIFrameElement || el instanceof HTMLFrameElement) return { iframe: refFor(el) };
+  return { facts: describeTarget(clickableAt(el)) };
+}
+
 async function handle(req: FrameRequest): Promise<unknown> {
   switch (req.cmd) {
     case 'ping':
@@ -320,7 +328,14 @@ async function handle(req: FrameRequest): Promise<unknown> {
     case 'synthetic-pointer':
       return syntheticPointer(req.ref, req.from, req.to, req.button, req.clickCount);
     case 'describe-target':
-      return describeTarget(req.ref ? resolveRef(req.ref) : req.point ? clickableAt(deepElementFromPoint(req.point.x, req.point.y) ?? document.body) : focusedElement());
+      return describeTarget(req.ref ? resolveRef(req.ref) : focusedElement());
+    case 'probe-point':
+      return probePoint(req.point.x, req.point.y);
+    case 'mask-secrets':
+      return maskSecrets(req.values);
+    case 'unmask-secrets':
+      unmaskSecrets();
+      return true;
     case 'detect-gates':
       return detectGates();
     case 'overlay':

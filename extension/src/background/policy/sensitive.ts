@@ -5,7 +5,7 @@
 import type { ElementFacts } from '../../messages';
 import { fold } from './fold';
 
-export type Category = 'send' | 'purchase' | 'delete' | 'publish' | 'transfer' | 'download' | 'password' | 'permission' | 'submit';
+export type Category = 'send' | 'purchase' | 'delete' | 'publish' | 'transfer' | 'download' | 'password' | 'upload' | 'permission' | 'submit';
 
 export type Verdict = { level: 'allow' } | { level: 'confirm'; category: Category; label: string };
 
@@ -70,4 +70,10 @@ export function classifyTyping(f: Pick<ElementFacts, 'inputType' | 'autocomplete
     return { level: 'confirm', category: 'password', label: (f.name || f.text).trim().slice(0, 80) };
   }
   return ALLOW;
+}
+
+/** Dragging onto a file input or a password field puts content into it without typing: asked like the matching action. */
+export function classifyDrop(f: Pick<ElementFacts, 'inputType' | 'autocomplete' | 'name' | 'text'>): Verdict {
+  if (f.inputType === 'file') return { level: 'confirm', category: 'upload', label: (f.name || f.text).trim().slice(0, 80) };
+  return classifyTyping(f);
 }
