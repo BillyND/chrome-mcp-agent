@@ -6,8 +6,8 @@ import type { ElementFacts } from '../extension/src/messages';
 import { DEFAULT_BLOCKS } from '../extension/src/background/policy/default-blocks';
 import { fold } from '../extension/src/background/policy/fold';
 import { checkAccountCreation, checkTyping, checkUpload, looksLikeCardNumber, luhnValid, MAX_UPLOAD_BYTES } from '../extension/src/background/policy/hard-blocks';
-import { classifyClick, classifySubmit, classifyTyping } from '../extension/src/background/policy/sensitive';
-import { decideSite, hostMatches, hostOf, normalizeRuleHost, targetUrlsOf } from '../extension/src/background/policy/site-rules';
+import { classifyClick, classifyDrop, classifySubmit, classifyTyping } from '../extension/src/background/policy/sensitive';
+import { decideSite, hostMatches, hostOf, normalizeRuleHost, scriptRule, targetUrlsOf } from '../extension/src/background/policy/site-rules';
 import { CLOSE_TAG, looksLikeCaptcha, OPEN_TAG, wrapUntrusted } from '../extension/src/background/policy/untrusted';
 
 const facts = (over: Partial<ElementFacts> = {}): ElementFacts => ({
@@ -319,5 +319,20 @@ describe('untrusted envelope', () => {
     expect(looksLikeCaptcha('about:blank', 'Widget containing a Cloudflare security challenge turnstile')).toBe(true);
     expect(looksLikeCaptcha('https://www.youtube.com/embed/x', 'Video')).toBe(false);
     expect(looksLikeCaptcha('', '')).toBe(false);
+  });
+});
+
+describe('dropping onto sensitive fields and script permissions', () => {
+  it('asks before a drop onto a password or file field, not onto plain fields', () => {
+    expect(classifyDrop(facts({ tag: 'input', inputType: 'password', name: 'Mật khẩu' }))).toMatchObject({ level: 'confirm', category: 'password' });
+    expect(classifyDrop(facts({ tag: 'input', inputType: 'file', name: 'Chọn file' }))).toMatchObject({ level: 'confirm', category: 'upload', label: 'Chọn file' });
+    expect(classifyDrop(facts({ tag: 'div', role: null, name: 'Vùng thả' })).level).toBe('allow');
+  });
+
+  it('keeps script permissions apart from site rules and from real hosts', () => {
+    expect(scriptRule('shop.example.com')).toBe('script:shop.example.com');
+    expect(hostOf(scriptRule('shop.example.com'))).toBe('');
+    expect(decideSite('https://shop.example.com/', { [scriptRule('shop.example.com')]: 'allow', 'shop.example.com': 'block' }).action).toBe('block');
+    expect(decideSite('https://shop.example.com/', { [scriptRule('shop.example.com')]: 'block' }).action).toBe('allow');
   });
 });

@@ -23,6 +23,28 @@ export function safetyPages(siteB) {
 <a id="dl" download href="/report.csv">Tải báo cáo</a>
 <p id="result"></p></body></html>`,
 
+    // Dangerous buttons at the top level and inside a cross-origin iframe (the frame serves /danger.html), for clicks by coordinates.
+    '/danger-host.html': `<!doctype html><html><head><meta charset="utf-8"><title>Khung nguy hiểm</title></head><body style="margin:20px;font-family:sans-serif">
+<button id="top-del" style="width:160px;height:40px" onclick="document.getElementById('result').textContent='Đã xoá trên cùng'">Xoá bản ghi</button>
+<button id="top-send" style="width:160px;height:40px" onclick="document.getElementById('result').textContent='Đã gửi trên cùng'">Gửi</button>
+<button id="top-safe" style="width:160px;height:40px" onclick="document.getElementById('result').textContent='Đã xem trên cùng'">Xem trước</button>
+<p id="result"></p>
+<iframe id="frame" title="Khung xoá" src="${siteB}/danger.html" width="460" height="140" style="border:1px solid #999"></iframe>
+</body></html>`,
+
+    // Fields holding a typed secret and a password, one of each also inside a cross-origin iframe, plus text that echoes the secret.
+    '/secret-fields.html': `<!doctype html><html><head><meta charset="utf-8"><title>Trường bí mật</title></head><body style="margin:20px;font-family:sans-serif;background:#fff">
+<label>Khoá API <input id="plain" type="text" style="width:300px;height:34px;display:block;background:#fff"></label>
+<label>Mật khẩu <input id="pass" type="password" style="width:300px;height:34px;display:block;background:#fff"></label>
+<label>Ghi chú <input id="other" type="text" value="chữ bình thường" style="width:300px;height:34px;display:block;background:#fff"></label>
+<label>Văn bản <div id="rich" contenteditable="true" style="width:300px;height:34px;border:1px solid #888;background:#fff"></div></label>
+<p id="echo" style="font-size:20px">Khoá của bạn: <span id="echo-value"></span></p>
+<iframe id="inner" title="Khung bí mật" src="${siteB}/secret-frame.html" width="360" height="150" style="border:1px solid #999"></iframe>
+</body></html>`,
+    '/secret-frame.html': `<!doctype html><meta charset="utf-8"><body style="margin:8px;font-family:sans-serif;background:#fff">
+<label>Khoá trong khung <input id="plain" type="text" style="width:300px;height:34px;display:block;background:#fff"></label>
+<label>Mật khẩu trong khung <input id="pass" type="password" style="width:300px;height:34px;display:block;background:#fff"></label></body>`,
+
     '/injection.html': `<!doctype html><html><head><meta charset="utf-8"><title>Tin tức</title>
 <style>
 body{background:#ffffff;color:#111;font-family:sans-serif}
