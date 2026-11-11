@@ -2,7 +2,7 @@
 
 import { send, sessionOf } from '../cdp';
 import { frameCall } from '../frames';
-import { guardClick, guardPoint } from '../policy/guard';
+import { guardClick, guardDrag, guardPoint } from '../policy/guard';
 import { clickAt, clickTarget, modifierMask, mouse, withClickProbe } from './input';
 import { elementBox, locate } from './locate';
 import { afterAction } from './page-summary';
@@ -57,17 +57,16 @@ export const mouseTools = {
       throw new ToolError(`Point (${x}, ${y}) is outside the visible viewport (${Math.round(vp.clientWidth)}x${Math.round(vp.clientHeight)}). Scroll it into view first.`);
     }
     if (action === 'drag' && (args.toX === undefined || args.toY === undefined)) throw new ToolError('toX and toY are required for drag.');
-    if (action === 'click' || action === 'double_click' || action === 'right_click') {
-      if (args.ref) await guardClick(ctx, tabId, args.ref);
-      else await guardPoint(ctx, tabId, x, y);
-    }
+    const ex = box.x + Number(args.toX);
+    const ey = box.y + Number(args.toY);
+    // Whatever is under the point is judged, with or without a ref, in whichever frame it is.
+    if (action === 'drag') await guardDrag(ctx, tabId, { x, y }, { x: ex, y: ey });
+    else if (action !== 'move') await guardPoint(ctx, tabId, x, y);
     await glide(tabId, x, y);
     checkAbort(ctx);
     const modifiers = args.modifiers as string[] | undefined;
     const button = action === 'right_click' ? 'right' : 'left';
     const clickCount = action === 'double_click' ? 2 : 1;
-    const ex = box.x + Number(args.toX);
-    const ey = box.y + Number(args.toY);
 
     const perform = async () => {
       if (action === 'move') {

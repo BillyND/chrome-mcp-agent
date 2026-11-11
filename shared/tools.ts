@@ -271,7 +271,7 @@ export const TOOLS: ToolDef[] = [
     name: 'browser_evaluate',
     title: 'Run JavaScript',
     description:
-      'Run a JavaScript expression or function body in the page (or in the frame that contains ref, with the element available as `element`). Return a JSON-serializable value.',
+      'Run a JavaScript expression or function body in the page (or in the frame that contains ref, with the element available as `element`). Return a JSON-serializable value. The user is asked to allow scripts on the site first.',
     inputSchema: obj(
       {
         script: { type: 'string', description: 'E.g. "document.title" or "return [...document.links].length".' },

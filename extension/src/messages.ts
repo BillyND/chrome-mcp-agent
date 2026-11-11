@@ -49,7 +49,10 @@ export type FrameRequest =
   | { cmd: 'read-click-probe' }
   | { cmd: 'synthetic-click'; ref: string; button: string; clickCount: number; modifiers: string[] }
   | { cmd: 'synthetic-pointer'; ref: string; from: { x: number; y: number }; to?: { x: number; y: number }; button: string; clickCount: number }
-  | { cmd: 'describe-target'; ref?: string; point?: { x: number; y: number } }
+  | { cmd: 'describe-target'; ref?: string }
+  | { cmd: 'probe-point'; point: { x: number; y: number } }
+  | { cmd: 'mask-secrets'; values: string[] }
+  | { cmd: 'unmask-secrets' }
   | { cmd: 'detect-gates' }
   | { cmd: 'overlay'; action: OverlayAction };
 
@@ -75,13 +78,16 @@ export interface ElementFacts {
   download: boolean;
 }
 
+/** What lies at a point of a frame: an element, or an <iframe> (its ref in this frame) to look into. */
+export type PointProbe = { facts: ElementFacts } | { iframe: string };
+
 /** A login field or a CAPTCHA the user must handle. */
 export interface PageGates {
   password: boolean;
   captcha: boolean;
 }
 
-export type PromptKind = 'site' | 'sensitive' | 'handback';
+export type PromptKind = 'site' | 'script' | 'sensitive' | 'handback';
 /** Answers to an on-page prompt. */
 export type Choice = 'once' | 'always' | 'approve' | 'done' | 'decline';
 

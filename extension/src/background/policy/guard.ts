@@ -12,8 +12,9 @@ import { agentLabel } from '../tools/agent-id';
 import { STOPPED, ToolError, TrustedError, type ToolCtx } from '../tools/types';
 import { ask } from './approvals';
 import { checkAccountCreation, checkTyping, checkUpload } from './hard-blocks';
-import { classifyClick, classifySubmit, classifyTyping, type Verdict } from './sensitive';
-import { decideSite, hostOf } from './site-rules';
+import { factsAtPoint } from './point-facts';
+import { classifyClick, classifyDrop, classifySubmit, classifyTyping, type Verdict } from './sensitive';
+import { decideSite, hostOf, scriptRule } from './site-rules';
 import { getGrant, getRules, getSettings, setGrant, setRule } from './store';
 import { HANDBACK_HINT, wrapUntrusted } from './untrusted';
 
@@ -43,6 +44,42 @@ function declined(ctx: ToolCtx, choice: Choice | 'timeout', what: string, timeou
 
 const asking = new Map<string, Promise<void>>();
 
+/**
+ * Asks "allow this agent ...?" once per grant. `rule` is the key the answer is stored under (a host, or "script:host"):
+ * Allow once is a timed grant, Always becomes an allow rule, Decline is remembered briefly so the agent cannot nag.
+ */
+async function grantGate(ctx: ToolCtx, kind: 'site' | 'script', host: string, rule: string, what: string): Promise<void> {
+  const grant = await getGrant(ctx.agent, rule);
+  if (grant === true) return;
+  if (grant === false) declined(ctx, 'decline', what, 0);
+
+  const key = `${ctx.agent}|${rule}`;
+  const inFlight = asking.get(key);
+  if (inFlight) {
+    await inFlight.catch(() => {});
+    return grantGate(ctx, kind, host, rule, what); // the answer is now a grant
+  }
+  const settings = await getSettings();
+  const question = (async () => {
+    const choice = await ask({ tabId: await questionTab(ctx), kind, agent: agentLabel(ctx.agent), host }, ctx.signal, settings.approvalTimeoutMs);
+    if (choice === 'once') await setGrant(ctx.agent, rule, true, settings.grantMs);
+    else if (choice === 'always') await setRule(rule, 'allow');
+    else await setGrant(ctx.agent, rule, false, settings.denyMs);
+    return choice;
+  })();
+  asking.set(key, question.then(() => {}, () => {}));
+  try {
+    const choice = await question;
+    if (choice === 'once' || choice === 'always') {
+      ctx.audit.approval = 'approved';
+      return;
+    }
+    declined(ctx, choice, what, settings.approvalTimeoutMs);
+  } finally {
+    asking.delete(key);
+  }
+}
+
 /** Throws unless the agent may use `url`'s site. Unknown sites are allowed; "ask" sites prompt the user once per grant. */
 export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
   const decision = decideSite(url, await getRules());
@@ -53,35 +90,15 @@ export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
     const why = decision.source === 'default' ? `blocked by default (${decision.category})` : 'blocked by a rule the user set';
     REFUSED(ctx, `${decision.host} is ${why} in Helmsman. Do not reach it another way (another tool or URL); tell the user, who can unblock it in the Helmsman popup under Sites.`);
   }
-  const grant = await getGrant(ctx.agent, decision.host);
-  if (grant === true) return;
-  if (grant === false) declined(ctx, 'decline', `access to ${decision.host}`, 0);
+  await grantGate(ctx, 'site', decision.host, decision.host, `access to ${decision.host}`);
+}
 
-  const key = `${ctx.agent}|${decision.host}`;
-  const inFlight = asking.get(key);
-  if (inFlight) {
-    await inFlight.catch(() => {});
-    return siteGate(ctx, url); // the answer is now a grant
-  }
-  const settings = await getSettings();
-  const question = (async () => {
-    const choice = await ask({ tabId: await questionTab(ctx), kind: 'site', agent: agentLabel(ctx.agent), host: decision.host }, ctx.signal, settings.approvalTimeoutMs);
-    if (choice === 'once') await setGrant(ctx.agent, decision.host, true, settings.grantMs);
-    else if (choice === 'always') await setRule(decision.host, 'allow');
-    else await setGrant(ctx.agent, decision.host, false, settings.denyMs);
-    return choice;
-  })();
-  asking.set(key, question.then(() => {}, () => {}));
-  try {
-    const choice = await question;
-    if (choice === 'once' || choice === 'always') {
-      ctx.audit.approval = 'approved';
-      return;
-    }
-    declined(ctx, choice, `access to ${decision.host}`, settings.approvalTimeoutMs);
-  } finally {
-    asking.delete(key);
-  }
+/** Before running the agent's own JavaScript in a tab: the user allows it per site (once, or always as the rule "script:<host>"). */
+export async function guardScript(ctx: ToolCtx, tabId: number): Promise<void> {
+  const host = (await hostOfTab(tabId)) || 'this page';
+  const rule = scriptRule(host);
+  if ((await getRules())[rule] === 'allow') return;
+  await grantGate(ctx, 'script', host, rule, `running scripts on ${host}`);
 }
 
 // ---- elements ----------------------------------------------------------------------------
@@ -112,22 +129,27 @@ async function confirm(ctx: ToolCtx, tabId: number, verdict: Verdict): Promise<v
   ctx.notes.push(`The user approved this action (${verdict.category}: "${verdict.label}").`);
 }
 
-/** Before clicking the element behind `ref`. */
-export async function guardClick(ctx: ToolCtx, tabId: number, ref: string): Promise<void> {
-  const facts = await factsOf(tabId, ref);
+/** Refuses account creation and asks about sensitive clicks, for an element already described. */
+async function checkClick(ctx: ToolCtx, tabId: number, facts: ElementFacts | null): Promise<void> {
   if (!facts) return;
   const refusal = checkAccountCreation(facts);
   if (refusal) REFUSED(ctx, refusal);
   await confirm(ctx, tabId, classifyClick(facts));
 }
 
-/** Before clicking at a viewport point without a ref: the element under it in the top frame is classified like a ref. */
-export async function guardPoint(ctx: ToolCtx, tabId: number, x: number, y: number): Promise<void> {
-  const facts = await frameCall<ElementFacts>(tabId, 0, { cmd: 'describe-target', point: { x, y } }).catch(() => null);
-  if (!facts || facts.tag === 'iframe') return;
-  const refusal = checkAccountCreation(facts);
-  if (refusal) REFUSED(ctx, refusal);
-  await confirm(ctx, tabId, classifyClick(facts));
+/** Before clicking the element behind `ref`. */
+export const guardClick = async (ctx: ToolCtx, tabId: number, ref: string): Promise<void> => checkClick(ctx, tabId, await factsOf(tabId, ref));
+
+/** Before clicking at a top-level viewport point: the element under it, in whichever frame it is, is judged like a ref. */
+export const guardPoint = async (ctx: ToolCtx, tabId: number, x: number, y: number): Promise<void> => checkClick(ctx, tabId, await factsAtPoint(tabId, x, y));
+
+type Point = { x: number; y: number };
+
+/** Before dragging between two viewport points: the press is judged like a click, the drop like typing or attaching. */
+export async function guardDrag(ctx: ToolCtx, tabId: number, from: Point, to: Point): Promise<void> {
+  await guardPoint(ctx, tabId, from.x, from.y);
+  const dropped = await factsAtPoint(tabId, to.x, to.y);
+  if (dropped) await confirm(ctx, tabId, classifyDrop(dropped));
 }
 
 /** Before typing `value` into the element behind `ref` (or the focused element), optionally followed by Enter. */

@@ -2,6 +2,7 @@
 
 import { send } from '../cdp';
 import { callAllFrames, frameCall, parseRef, readyFrames, refPrefix } from '../frames';
+import { guardScript } from '../policy/guard';
 import { pageHeader, prepareTab, tabTag } from './tab';
 import { tabTool, text, ToolError } from './types';
 import type { FindHit } from '../../content/page-data';
@@ -65,6 +66,7 @@ export const pageDataTools = {
 
   browser_evaluate: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Chạy script');
+    await guardScript(ctx, tab.id!);
     const value = await evaluate(tab.id!, String(args.script), args.ref);
     const json = value === undefined ? 'undefined' : JSON.stringify(value, null, 2);
     return text(`${tabTag(tab.id!)} result:\n${json}`);
