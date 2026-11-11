@@ -59,7 +59,6 @@ export type RuntimeMessage =
   | { type: 'connect'; password?: string }
   | { type: 'logout' }
   | { type: 'reconnect' }
-  | { type: 'set-enabled'; enabled: boolean }
   | { type: 'get-state' };
 
 export interface ActivityEntry {
@@ -75,7 +74,6 @@ export interface PopupState {
   status: ConnectionStatus;
   code?: string;
   needsPassword: boolean;
-  enabled: boolean;
   paused: boolean;
   gateway: string;
   log: ActivityEntry[];

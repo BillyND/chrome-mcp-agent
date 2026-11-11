@@ -250,20 +250,24 @@ test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframe
   await call('browser_navigate', { url: fixtures.url });
 });
 
-test('Stop pauses the agent until resumed', async () => {
+test('Turning the control switch off pauses the agent until it is turned back on', async () => {
   const [sw] = ctx.serviceWorkers();
   // Drive the same messages the popup and the in-page Stop button send.
   const popup = await ctx.newPage();
   await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
-  await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'stop' }));
+  const allow = popup.locator('#enabled');
+  await expect(allow).toHaveAttribute('aria-checked', 'true');
+  await allow.click();
+  await expect(allow).toHaveAttribute('aria-checked', 'false');
   let r = await call('browser_snapshot');
   expect(r.isError).toBe(true);
   expect(r.text).toContain('pressed Stop');
-  await expect(popup.locator('#stop')).toHaveText('Resume');
+  await expect(popup.locator('#status-text')).toHaveText('Paused');
   await popup.setViewportSize({ width: 360, height: 640 });
   await popup.screenshot({ path: 'test-results/popup.png' });
-  await popup.locator('#stop').click();
-  await expect(popup.locator('#stop')).toHaveText('Stop');
+  await allow.click();
+  await expect(allow).toHaveAttribute('aria-checked', 'true');
+  await expect(popup.locator('#status-text')).toHaveText('Connected');
   await popup.close();
   r = await call('browser_snapshot');
   expect(r.isError, r.text).toBeFalsy();

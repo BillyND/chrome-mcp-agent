@@ -17,7 +17,7 @@ export const state = {
   status: 'signed-out' as ConnectionStatus,
   /** Error code the popup translates (see popup i18n `err_*`). */
   lastError: undefined as string | undefined,
-  /** Set by the Stop button; every tool call fails until the user resumes. */
+  /** The "Allow AI control" switch is off: every tool call fails until the user turns it back on. Persisted. */
   paused: false,
   /** The gateway asked for the group password on the last connect attempt. */
   needsPassword: false,
@@ -44,9 +44,14 @@ export async function setAccount(account: Account | null): Promise<void> {
   else await chrome.storage.local.remove('account');
 }
 
-export async function isEnabled(): Promise<boolean> {
-  const { enabled } = await chrome.storage.local.get('enabled');
-  return enabled !== false;
+/** Resolves once the persisted pause flag has been read after a service-worker start. */
+export const pausedLoaded: Promise<void> = chrome.storage.local.get('paused').then(({ paused }) => {
+  state.paused = paused === true;
+});
+
+export async function setPaused(paused: boolean): Promise<void> {
+  state.paused = paused;
+  await chrome.storage.local.set({ paused });
 }
 
 export async function getAgentTab(): Promise<number | undefined> {
@@ -67,12 +72,12 @@ export async function logActivity(entry: ActivityEntry): Promise<void> {
 }
 
 export async function popupState(): Promise<PopupState> {
-  const [account, enabled, { log }] = await Promise.all([getAccount(), isEnabled(), chrome.storage.local.get('log')]);
+  await pausedLoaded;
+  const [account, { log }] = await Promise.all([getAccount(), chrome.storage.local.get('log')]);
   return {
     status: account ? state.status : state.status === 'not-allowed' ? 'not-allowed' : 'signed-out',
     code: account?.code,
     needsPassword: state.needsPassword,
-    enabled,
     paused: state.paused,
     gateway: GATEWAY_URL,
     log: ((log as ActivityEntry[] | undefined) ?? []).slice(0, 20),

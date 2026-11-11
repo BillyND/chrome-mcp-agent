@@ -1,6 +1,6 @@
 # Chrome MCP Agent
 
-Cho ChatGPT (kể cả gói Free) điều khiển Chrome thật của bạn: đọc trang, bấm, gõ tiếng Việt, điền form, kéo thả, tải file lên, chụp màn hình. Làm được cả bên trong iframe khác domain, iframe lồng nhau và shadow DOM. Khi AI làm việc, trên trang hiện con trỏ tím và thanh có nút **Dừng**.
+Cho ChatGPT (kể cả gói Free) điều khiển Chrome thật của bạn: đọc trang, bấm, gõ tiếng Việt, điền form, kéo thả, tải file lên, chụp màn hình. Làm được cả bên trong iframe khác domain, iframe lồng nhau và shadow DOM. Khi AI làm việc, trên trang hiện con trỏ và thanh có nút **Dừng**.
 
 ```
 ChatGPT ──MCP + OAuth──► Cloudflare Worker (/mcp) ──► Durable Object của từng người ──WebSocket──► Extension trong Chrome
@@ -17,7 +17,7 @@ ChatGPT ──MCP + OAuth──► Cloudflare Worker (/mcp) ──► Durable Ob
 
 ## Hướng dẫn cho người dùng
 
-1. Vào trang chủ, bấm **Tải extension (.zip)** rồi giải nén. Mở `chrome://extensions`, bật **Developer mode**, bấm **Load unpacked**, chọn thư mục vừa giải nén. Ghim biểu tượng con trỏ tím lên thanh công cụ.
+1. Vào trang chủ, bấm **Tải extension (.zip)** rồi giải nén. Mở `chrome://extensions`, bật **Developer mode**, bấm **Load unpacked**, chọn thư mục vừa giải nén. Ghim biểu tượng con trỏ lên thanh công cụ.
 2. Bấm biểu tượng, chọn **Kết nối Chrome này**. Extension hiện **mã kết nối** (ví dụ `K7QX2-MN4PD`) và chấm xanh **Đã kết nối**.
 3. Trong ChatGPT: **Cài đặt → Apps & Connectors → Advanced**, bật **Developer mode**, rồi bấm **Create**. Dán địa chỉ MCP, chọn **OAuth**. Khi trang cho phép hiện ra, dán mã kết nối và bấm **Cho phép**.
 4. Bật connector trong cuộc chat rồi nhờ ChatGPT, ví dụ: *"Mở tab Gmail của tôi, tóm tắt 5 email mới nhất"*.
@@ -26,7 +26,9 @@ Ghi chú:
 - Không cần tài khoản Google hay đăng nhập gì cả. Mỗi mã kết nối chỉ điều khiển được đúng một Chrome. Đừng chia sẻ mã cho người khác.
 - Bấm **Ngắt kết nối Chrome này** trong extension sẽ huỷ mã. Mọi ChatGPT đã kết nối bằng mã đó lập tức mất quyền.
 - Dải vàng *"Chrome MCP Agent đang gỡ lỗi trình duyệt này"* là bình thường, tự ẩn sau 3 phút không dùng.
-- Bấm **Dừng** trên trang hoặc trong extension thì AI dừng ngay, cho tới khi bạn bấm **Tiếp tục**.
+- Công tắc **Cho phép AI điều khiển** trong extension là nút dừng duy nhất: tắt thì AI dừng ngay (vẫn giữ kết nối), bật lại là tiếp tục. Nút **Dừng** / **Tiếp tục** trên thanh ở trang cũng bật tắt công tắc này, và trạng thái được nhớ kể cả khi Chrome khởi động lại extension.
+- Extension và các trang web có nút chọn ngôn ngữ (EN/VI) và giao diện (sáng/tối/theo hệ thống). Mặc định là sáng, ngôn ngữ theo trình duyệt.
+- AI vẽ và bấm được trên canvas (ví dụ Google Sheets, bảng vẽ) bằng `browser_mouse_xy`, và gõ thẳng vào ô đang chọn mà không cần chỉ định phần tử (`browser_type` không cần ref).
 - Extension không điều khiển được các trang `chrome://` và Chrome Web Store, vì Chrome cấm.
 
 ## Quản trị

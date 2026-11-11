@@ -17,7 +17,7 @@ const CSS = `
 .layer.dark{--bg:#18181b;--fg:#fafafa;--muted:#a1a1aa;--border:#27272a;--danger:#f87171;--primary:#fafafa;--primary-fg:#18181b}
 .cursor{position:fixed;left:0;top:0;width:28px;height:28px;transform:translate(-100px,-100px);will-change:transform;opacity:0;transition:opacity .3s ease}
 .cursor.on{opacity:1}
-.cursor svg{display:block;overflow:visible;transform-origin:4px 3px;transition:transform .12s ease-out;filter:drop-shadow(0 6px 10px rgba(49,46,129,.28)) drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+.cursor svg{display:block;overflow:visible;transform-origin:4px 3px;transition:transform .12s ease-out;filter:drop-shadow(0 4px 8px rgba(0,0,0,.25))}
 .bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);box-shadow:0 10px 30px -10px rgba(0,0,0,.25),0 2px 6px -2px rgba(0,0,0,.08);opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none}
 .bar.top{bottom:auto;top:16px}
 .bar.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
@@ -30,8 +30,8 @@ button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 .paused button{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
 `;
 
-// Rounded pointer: violet gradient body, white rim, soft inner highlight.
-const CURSOR_SVG = `<svg width="28" height="28" viewBox="0 0 28 28"><defs><linearGradient id="cma-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#7c3aed"/></linearGradient><linearGradient id="cma-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><path d="M4.6 3.2c-.5-.3-1.1.2-.9.7l6.6 19.2c.2.6 1.1.6 1.3 0l2.5-7.1c.1-.3.3-.5.6-.6l7.1-2.6c.6-.2.6-1.1 0-1.3z" fill="url(#cma-g)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M5.8 5.4 10.6 19l1.7-4.8c.2-.6.7-1.1 1.3-1.3l4.7-1.7z" fill="url(#cma-h)"/></svg>`;
+// Rounded pointer: zinc-900 body with a white rim, readable on light and dark pages.
+const CURSOR_SVG = `<svg width="28" height="28" viewBox="0 0 28 28"><path d="M4.6 3.2c-.5-.3-1.1.2-.9.7l6.6 19.2c.2.6 1.1.6 1.3 0l2.5-7.1c.1-.3.3-.5.6-.6l7.1-2.6c.6-.2.6-1.1 0-1.3z" fill="#18181b" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>`;
 
 let host: HTMLElement | null = null;
 let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement } | null = null;

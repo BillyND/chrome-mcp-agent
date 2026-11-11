@@ -1,4 +1,4 @@
-// Renders the extension icon (gradient rounded square with a white cursor) to
+// Renders the extension icon (zinc rounded square with a white cursor) to
 // PNG at each size with a tiny anti-aliased rasterizer, so no image tooling is needed.
 
 import fs from 'node:fs';
@@ -77,11 +77,10 @@ function render(size) {
         }
       }
       const n = ss * ss;
-      const t = (px + py) / (2 * size);
-      // #4f46e5 -> #7c3aed gradient
-      const r = Math.round(0x4f + (0x7c - 0x4f) * t);
-      const g = Math.round(0x46 + (0x3a - 0x46) * t);
-      const b = Math.round(0xe5 + (0xed - 0xe5) * t);
+      // zinc-900 (#18181b)
+      const r = 0x18;
+      const g = 0x18;
+      const b = 0x1b;
       const f = fg / Math.max(1, bg);
       const i = (py * size + px) * 4;
       buf[i] = Math.round(r + (255 - r) * f);

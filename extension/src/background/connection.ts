@@ -12,7 +12,7 @@ import {
   PING_INTERVAL_MS,
   PROTOCOL,
 } from '../../../shared/protocol';
-import { GATEWAY_URL, getAccount, isEnabled, setAccount, setStatus, state } from './state';
+import { GATEWAY_URL, getAccount, setAccount, setStatus, state } from './state';
 
 const PONG_TIMEOUT_MS = 10_000;
 const MAX_BACKOFF_MS = 15_000;
@@ -74,10 +74,6 @@ export async function connect(): Promise<void> {
   const account = await getAccount();
   if (!account) {
     setStatus('signed-out');
-    return;
-  }
-  if (!(await isEnabled())) {
-    setStatus('offline', 'disabled');
     return;
   }
   if (state.status === 'replaced') return;

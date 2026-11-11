@@ -4,7 +4,7 @@ import type { RuntimeMessage } from '../messages';
 import { detachAll, installCdpListeners } from './cdp';
 import { connect, disconnect, onToolCall, reconnectNow, send } from './connection';
 import { handleFrameIdentified } from './frames';
-import { GATEWAY_URL, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setStatus, state } from './state';
+import { GATEWAY_URL, getAccount, getAgentTab, logActivity, notify, pausedLoaded, popupState, setAccount, setPaused, setStatus, state } from './state';
 import { runTool, showAgentBar } from './tools';
 
 const KEEPALIVE_ALARM = 'keepalive';
@@ -16,6 +16,7 @@ let queue: Promise<void> = Promise.resolve();
 
 onToolCall((msg) => {
   queue = queue.then(async () => {
+    await pausedLoaded;
     const started = Date.now();
     const result = state.paused
       ? { content: [{ type: 'text' as const, text: 'The user pressed Stop in Chrome. Do not continue; ask the user what to do.' }], isError: true }
@@ -57,7 +58,7 @@ async function register(password = ''): Promise<void> {
 }
 
 async function stop() {
-  state.paused = true;
+  await setPaused(true);
   state.abort.abort();
   state.abort = new AbortController();
   const tabId = await getAgentTab();
@@ -67,7 +68,7 @@ async function stop() {
 }
 
 async function resume() {
-  state.paused = false;
+  await setPaused(false);
   const tabId = await getAgentTab();
   if (tabId !== undefined) await showAgentBar(tabId, 'Sẵn sàng').catch(() => {});
   notify();
@@ -104,17 +105,6 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       return false;
     case 'reconnect':
       void reconnectNow();
-      return false;
-    case 'set-enabled':
-      void (async () => {
-        await chrome.storage.local.set({ enabled: msg.enabled });
-        if (msg.enabled) await reconnectNow();
-        else {
-          disconnect();
-          await detachAll();
-          setStatus('offline', 'disabled');
-        }
-      })();
       return false;
   }
   return false;

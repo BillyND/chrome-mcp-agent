@@ -189,17 +189,8 @@ function App() {
             <label htmlFor="enabled" className="font-medium">
               {tr('allow')}
             </label>
-            <Switch id="enabled" checked={s.enabled} onCheckedChange={(enabled) => void send({ type: 'set-enabled', enabled })} />
+            <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
           </Card>
-
-          <Button
-            id="stop"
-            variant={s.paused ? 'default' : 'destructive'}
-            className="w-full"
-            onClick={() => void send({ type: s.paused ? 'resume' : 'stop' })}
-          >
-            {s.paused ? tr('resume') : tr('stop')}
-          </Button>
 
           <div className="mt-0.5 text-xs font-medium text-muted-foreground">{tr('activity')}</div>
           <ul id="log" className="divide-y rounded-lg border">
