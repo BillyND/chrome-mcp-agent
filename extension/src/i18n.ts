@@ -1,0 +1,105 @@
+// UI strings (English and Vietnamese) and the user's language/theme preferences,
+// shared by the popup and the in-page overlay.
+
+export type Lang = 'en' | 'vi';
+export type Theme = 'light' | 'dark' | 'system';
+
+const en = {
+  tagline: 'Let ChatGPT use your Chrome',
+  connect: 'Connect',
+  connecting: 'Connecting…',
+  password: 'Group password',
+  code: 'Connection code',
+  mcpUrl: 'MCP URL',
+  copy: 'Copy',
+  copied: 'Copied',
+  howTo: 'How to connect',
+  allow: 'Allow control',
+  stop: 'Stop',
+  resume: 'Resume',
+  useHere: 'Use this Chrome',
+  activity: 'Activity',
+  noActivity: 'Nothing yet',
+  disconnect: 'Disconnect',
+  status_connected: 'Connected',
+  status_connecting: 'Connecting',
+  status_offline: 'Offline',
+  status_replaced: 'In use elsewhere',
+  'status_not-allowed': 'Password needed',
+  'status_signed-out': 'Not connected',
+  paused: 'Paused',
+  err_disabled: 'Control is turned off.',
+  err_offline: 'No internet connection.',
+  err_revoked: 'This Chrome was disconnected. Connect again.',
+  err_replaced: 'Connected from another Chrome.',
+  err_network: 'Can’t reach the server.',
+  err_wrong_password: 'Wrong password.',
+  err_server: 'Server refused. Try again later.',
+  bar_working: 'Agent is working',
+  bar_paused: 'Agent paused',
+};
+
+const vi: typeof en = {
+  tagline: 'Cho ChatGPT dùng Chrome của bạn',
+  connect: 'Kết nối',
+  connecting: 'Đang kết nối…',
+  password: 'Mật khẩu nhóm',
+  code: 'Mã kết nối',
+  mcpUrl: 'URL MCP',
+  copy: 'Copy',
+  copied: 'Đã copy',
+  howTo: 'Cách kết nối',
+  allow: 'Cho phép điều khiển',
+  stop: 'Dừng',
+  resume: 'Tiếp tục',
+  useHere: 'Dùng Chrome này',
+  activity: 'Hoạt động',
+  noActivity: 'Chưa có gì',
+  disconnect: 'Ngắt kết nối',
+  status_connected: 'Đã kết nối',
+  status_connecting: 'Đang kết nối',
+  status_offline: 'Ngoại tuyến',
+  status_replaced: 'Đang dùng ở nơi khác',
+  'status_not-allowed': 'Cần mật khẩu',
+  'status_signed-out': 'Chưa kết nối',
+  paused: 'Đã dừng',
+  err_disabled: 'Đã tắt quyền điều khiển.',
+  err_offline: 'Mất kết nối mạng.',
+  err_revoked: 'Chrome này đã bị ngắt. Kết nối lại nhé.',
+  err_replaced: 'Đang kết nối từ một Chrome khác.',
+  err_network: 'Không tới được máy chủ.',
+  err_wrong_password: 'Sai mật khẩu.',
+  err_server: 'Máy chủ từ chối. Thử lại sau.',
+  bar_working: 'Agent đang làm việc',
+  bar_paused: 'Agent đã dừng',
+};
+
+export type Key = keyof typeof en;
+const dict: Record<Lang, typeof en> = { en, vi };
+
+export interface Prefs {
+  lang: Lang;
+  theme: Theme;
+}
+
+export async function getPrefs(): Promise<Prefs> {
+  const { prefs } = await chrome.storage.local.get('prefs');
+  const p = (prefs ?? {}) as Partial<Prefs>;
+  const browserLang: Lang = (navigator.language || 'en').toLowerCase().startsWith('vi') ? 'vi' : 'en';
+  return { lang: p.lang ?? browserLang, theme: p.theme ?? 'light' };
+}
+
+export async function setPrefs(next: Partial<Prefs>): Promise<Prefs> {
+  const merged = { ...(await getPrefs()), ...next };
+  await chrome.storage.local.set({ prefs: merged });
+  return merged;
+}
+
+export function t(lang: Lang, key: Key): string {
+  return dict[lang][key] ?? en[key];
+}
+
+/** Resolves "system" to the OS setting. */
+export function isDark(theme: Theme): boolean {
+  return theme === 'dark' || (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+}

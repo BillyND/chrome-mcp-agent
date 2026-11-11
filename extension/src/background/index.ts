@@ -42,13 +42,13 @@ async function register(password = ''): Promise<void> {
       body: JSON.stringify({ password }),
     });
   } catch {
-    setStatus('signed-out', 'Không kết nối được tới máy chủ. Kiểm tra mạng rồi thử lại.');
+    setStatus('signed-out', 'network');
     return;
   }
   const body = (await res.json().catch(() => ({}))) as { token?: string; code?: string; error?: string };
   if (!res.ok || !body.token || !body.code) {
     state.needsPassword = body.error === 'password_required' || body.error === 'wrong_password';
-    setStatus('not-allowed', body.error === 'wrong_password' ? 'Mật khẩu nhóm không đúng.' : state.needsPassword ? '' : 'Máy chủ từ chối kết nối. Thử lại sau.');
+    setStatus('not-allowed', body.error === 'wrong_password' ? 'wrong_password' : state.needsPassword ? undefined : 'server');
     return;
   }
   state.needsPassword = false;
@@ -112,7 +112,7 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
         else {
           disconnect();
           await detachAll();
-          setStatus('offline', 'Bạn đã tắt quyền điều khiển trong extension.');
+          setStatus('offline', 'disabled');
         }
       })();
       return false;
@@ -123,7 +123,7 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
 chrome.runtime.onInstalled.addListener(async (details) => {
   await chrome.alarms.create(KEEPALIVE_ALARM, { periodInMinutes: 0.5 });
   if (details.reason === 'install') {
-    await chrome.tabs.create({ url: chrome.runtime.getURL('popup.html?welcome=1') });
+    await chrome.tabs.create({ url: GATEWAY_URL });
   }
   void connect();
 });
@@ -135,7 +135,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 self.addEventListener('online', () => void reconnectNow());
-self.addEventListener('offline', () => setStatus('offline', 'Máy đang mất mạng.'));
+self.addEventListener('offline', () => setStatus('offline', 'offline'));
 
 chrome.tabs.onRemoved.addListener(async (tabId) => {
   if ((await getAgentTab()) === tabId) await chrome.storage.session.remove('agentTabId');

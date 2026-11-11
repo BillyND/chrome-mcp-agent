@@ -221,6 +221,45 @@ function syntheticClick(ref: string, button: string, clickCount: number, modifie
   return true;
 }
 
+/** DOM-level mouse sequence at element-relative points: a click, or a drag when `to` is set. */
+function syntheticPointer(ref: string, from: { x: number; y: number }, to: { x: number; y: number } | undefined, button: string, clickCount: number) {
+  const el = resolveRef(ref);
+  const r = el.getBoundingClientRect();
+  const btn = button === 'right' ? 2 : button === 'middle' ? 1 : 0;
+  const at = (p: { x: number; y: number }) => {
+    const clientX = r.left + p.x;
+    const clientY = r.top + p.y;
+    const target = deepElementFromPoint(clientX, clientY) ?? el;
+    return { target: containsDeep(el, target) ? target : el, init: { bubbles: true, cancelable: true, composed: true, view: window, clientX, clientY, button: btn } };
+  };
+  const fireAt = (type: string, p: { x: number; y: number }, extra: object = {}) => {
+    const { target, init } = at(p);
+    const Ctor = type.startsWith('pointer') ? PointerEvent : MouseEvent;
+    target.dispatchEvent(new Ctor(type, { ...init, pointerType: 'mouse', isPrimary: true, ...extra }));
+  };
+  if (to) {
+    fireAt('pointerdown', from, { buttons: 1 });
+    fireAt('mousedown', from, { buttons: 1, detail: 1 });
+    for (let i = 1; i <= 10; i++) {
+      const p = { x: from.x + ((to.x - from.x) * i) / 10, y: from.y + ((to.y - from.y) * i) / 10 };
+      fireAt('pointermove', p, { buttons: 1 });
+      fireAt('mousemove', p, { buttons: 1 });
+    }
+    fireAt('pointerup', to);
+    fireAt('mouseup', to, { detail: 1 });
+    return true;
+  }
+  for (let i = 1; i <= clickCount; i++) {
+    fireAt('pointerdown', from, { buttons: 1, detail: i });
+    fireAt('mousedown', from, { buttons: 1, detail: i });
+    fireAt('pointerup', from, { detail: i });
+    fireAt('mouseup', from, { detail: i });
+    fireAt(btn === 2 ? 'contextmenu' : 'click', from, { detail: i });
+  }
+  if (clickCount === 2 && btn === 0) fireAt('dblclick', from, { detail: 2 });
+  return true;
+}
+
 async function handle(req: FrameRequest): Promise<unknown> {
   switch (req.cmd) {
     case 'ping':
@@ -259,6 +298,8 @@ async function handle(req: FrameRequest): Promise<unknown> {
       return readClickProbe();
     case 'synthetic-click':
       return syntheticClick(req.ref, req.button, req.clickCount, req.modifiers);
+    case 'synthetic-pointer':
+      return syntheticPointer(req.ref, req.from, req.to, req.button, req.clickCount);
     case 'overlay':
       await runOverlay(req.action);
       return true;

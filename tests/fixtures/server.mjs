@@ -48,6 +48,36 @@ r.getElementById('sb').onclick=()=>{r.getElementById('ss').textContent='Shadow O
 <button onclick="document.getElementById('out').textContent='Đã gửi: '+document.getElementById('email').value">Gửi iframe</button>
 <p id="out"></p>
 <iframe title="Khung lồng" src="${SITE_A}/nested.html" width="380" height="70"></iframe></body>`,
+  // Google-Sheets-like page: a hosting page with the sheet in a cross-origin iframe; the
+  // grid is a canvas, keys go to a hidden focused textarea, and a nested same-site
+  // iframe holds a paint canvas.
+  '/sheet-host.html': `<!doctype html><meta charset="utf-8"><title>Sheet Host</title><body style="margin:0;font-family:sans-serif">
+<h2 style="margin:10px">Bảng tính nhúng</h2>
+<iframe title="Bảng tính" src="${SITE_B}/sheet.html" width="680" height="560" style="border:1px solid #999;margin-left:30px"></iframe></body>`,
+  '/sheet.html': `<!doctype html><meta charset="utf-8"><body style="margin:0;font-family:sans-serif">
+<canvas id="grid" width="600" height="264" style="display:block;margin:12px"></canvas>
+<textarea id="keys" aria-hidden="true" style="position:absolute;left:-9999px;top:0;opacity:0"></textarea>
+<pre id="log" style="margin:0 12px;font-size:12px"></pre>
+<iframe title="Khung vẽ" src="${SITE_A}/paint.html" width="420" height="190" style="margin:0 12px;border:1px solid #bbb"></iframe>
+<script>
+const C=6,R=10,W=100,H=24,cols='ABCDEF',data={};let sel=null;
+const g=document.getElementById('grid'),ctx=g.getContext('2d'),keys=document.getElementById('keys'),log=document.getElementById('log');
+function draw(){ctx.clearRect(0,0,g.width,g.height);ctx.font='13px sans-serif';
+ for(let r=0;r<=R;r++)for(let c=0;c<=C;c++){const x=c*W,y=r*H;ctx.strokeStyle='#ccc';ctx.strokeRect(x+.5,y+.5,W,H);
+  ctx.fillStyle='#333';if(r===0&&c>0)ctx.fillText(cols[c-1],x+45,y+16);else if(c===0&&r>0)ctx.fillText(String(r),x+45,y+16);
+  else if(r>0&&c>0){const k=cols[c-1]+r;if(data[k])ctx.fillText(data[k],x+6,y+16);}}
+ if(sel){ctx.strokeStyle='#1a73e8';ctx.lineWidth=2;ctx.strokeRect(sel.c*W+1,sel.r*H+1,W-2,H-2);ctx.lineWidth=1;}}
+g.addEventListener('mousedown',e=>{const b=g.getBoundingClientRect();const c=Math.floor((e.clientX-b.left)/W),r=Math.floor((e.clientY-b.top)/H);
+ if(c<1||r<1||c>C||r>R)return;sel={c,r};keys.value='';keys.focus();draw();log.textContent='Chọn ô '+cols[c-1]+r;e.preventDefault();});
+keys.addEventListener('keydown',e=>{if(!sel)return;if(e.key==='Enter'){const k=cols[sel.c-1]+sel.r;data[k]=keys.value;log.textContent='Đã ghi '+k+' = '+keys.value;keys.value='';sel={c:sel.c,r:Math.min(R,sel.r+1)};draw();e.preventDefault();}});
+draw();
+</script></body>`,
+  '/paint.html': `<!doctype html><meta charset="utf-8"><body style="margin:0;font-family:sans-serif">
+<canvas id="paint" width="400" height="140" style="display:block;background:#fafafa"></canvas><p id="out" style="margin:4px 0;font-size:12px"></p>
+<script>const c=document.getElementById('paint'),x=c.getContext('2d'),o=document.getElementById('out');let s=null;
+c.addEventListener('mousedown',e=>{s=[e.offsetX,e.offsetY];o.textContent='Vẽ tại '+e.offsetX+','+e.offsetY;});
+c.addEventListener('mouseup',e=>{if(s&&(Math.abs(e.offsetX-s[0])>20||Math.abs(e.offsetY-s[1])>20)){x.beginPath();x.moveTo(s[0],s[1]);x.lineTo(e.offsetX,e.offsetY);x.stroke();o.textContent='Kéo từ '+s[0]+','+s[1]+' đến '+e.offsetX+','+e.offsetY;}s=null;});
+</script></body>`,
   '/nested.html': `<!doctype html><meta charset="utf-8"><body><button onclick="this.nextElementSibling.textContent='Lồng OK'">Nút lồng</button><span></span></body>`,
 };
 

@@ -3,12 +3,23 @@
     "target": "es2023",
     "module": "es2022",
     "moduleResolution": "bundler",
-    "lib": ["es2023", "dom", "dom.iterable", "webworker.importscripts"],
-    "types": ["chrome"],
+    "lib": [
+      "es2023",
+      "dom",
+      "dom.iterable",
+      "webworker.importscripts"
+    ],
+    "types": [
+      "chrome"
+    ],
     "strict": true,
     "noEmit": true,
     "skipLibCheck": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "jsx": "react-jsx"
   },
-  "include": ["src", "../shared"]
+  "include": [
+    "src",
+    "../shared"
+  ]
 }

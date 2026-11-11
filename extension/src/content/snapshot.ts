@@ -112,6 +112,15 @@ export function buildSnapshot(prefix: string): string {
       return;
     }
 
+    if (role === 'canvas') {
+      const r = el.getBoundingClientRect();
+      if (r.width >= 24 && r.height >= 24) {
+        const name = accessibleName(el);
+        push(depth, `canvas${name ? ` "${name}"` : ''} [ref=${prefix}${refFor(el)}] size=${Math.round(r.width)}x${Math.round(r.height)} (drawn content: use browser_screenshot, then browser_mouse_xy with this ref)`);
+      }
+      return;
+    }
+
     const interactive = isInteractive(el, role) && hasSize(el);
     if (interactive) {
       const name = accessibleName(el);

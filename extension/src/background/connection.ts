@@ -77,19 +77,19 @@ export async function connect(): Promise<void> {
     return;
   }
   if (!(await isEnabled())) {
-    setStatus('offline', 'Bạn đã tắt quyền điều khiển trong extension.');
+    setStatus('offline', 'disabled');
     return;
   }
   if (state.status === 'replaced') return;
   if (!navigator.onLine) {
-    setStatus('offline', 'Máy đang mất mạng.');
+    setStatus('offline', 'offline');
     return;
   }
   if (failures >= 3 && failures % 3 === 0) {
     const verdict = await tokenRejected(account.token);
     if (verdict === 'invalid') {
       await setAccount(null);
-      setStatus('signed-out', 'Kết nối của Chrome này đã bị huỷ. Bấm Kết nối để tạo mã mới.');
+      setStatus('signed-out', 'revoked');
       return;
     }
   }
@@ -134,7 +134,7 @@ export async function connect(): Promise<void> {
     if (ws !== socket) return;
     cleanup();
     if (event.code === 4000) {
-      setStatus('replaced', 'Tài khoản này vừa kết nối từ một Chrome khác. Bấm "Dùng Chrome này" để chuyển về đây.');
+      setStatus('replaced', 'replaced');
       return;
     }
     setStatus(navigator.onLine ? 'connecting' : 'offline');

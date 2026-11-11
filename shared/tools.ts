@@ -104,21 +104,42 @@ export const TOOLS: ToolDef[] = [
     name: 'browser_type',
     title: 'Type text',
     description:
-      'Click into an editable element and type text with real keyboard input. Works with inputs, textareas, rich text editors and fields inside iframes.',
+      'Type text with real keyboard input. With ref: click into that field first (inputs, textareas, rich text editors, fields inside iframes). Without ref: type into whatever has focus, e.g. the selected cell in Google Sheets after browser_mouse_xy.',
     inputSchema: obj(
       {
         element,
         ref,
         text: { type: 'string' },
-        clear: { type: 'boolean', default: true, description: 'Select and replace the existing value first.' },
+        clear: { type: 'boolean', default: true, description: 'With ref: select and replace the existing value first.' },
         submit: { type: 'boolean', default: false, description: 'Press Enter afterwards.' },
         slowly: { type: 'boolean', default: false, description: 'Type one key at a time (for fields that react per key).' },
         tabId,
       },
-      ['ref', 'text'],
+      ['text'],
     ),
     readOnly: false,
     timeoutMs: 60_000,
+  },
+  {
+    name: 'browser_mouse_xy',
+    title: 'Mouse at coordinates',
+    description:
+      'Click, double-click, right-click, move or drag at pixel coordinates. Use it for things a snapshot cannot address: canvas apps (Google Sheets cells, maps, charts, games, editors drawn on canvas) and unlabeled spots. Take browser_screenshot first: its pixels are viewport CSS pixels, so x/y read off the image work directly. Or pass ref (e.g. a canvas, even inside an iframe) and x/y relative to that element\'s top-left corner.',
+    inputSchema: obj(
+      {
+        action: { type: 'string', enum: ['click', 'double_click', 'right_click', 'move', 'drag'], default: 'click' },
+        x: { type: 'number' },
+        y: { type: 'number' },
+        toX: { type: 'number', description: 'Drag end x (same coordinate space as x).' },
+        toY: { type: 'number', description: 'Drag end y.' },
+        ref: { ...ref, description: 'Optional element whose top-left corner is the origin for x/y (and toX/toY).' },
+        modifiers: { type: 'array', items: { type: 'string', enum: ['Alt', 'Control', 'Meta', 'Shift'] } },
+        tabId,
+      },
+      ['x', 'y'],
+    ),
+    readOnly: false,
+    timeoutMs: 30_000,
   },
   {
     name: 'browser_fill_form',
@@ -198,7 +219,8 @@ export const TOOLS: ToolDef[] = [
   {
     name: 'browser_screenshot',
     title: 'Screenshot',
-    description: 'Capture the visible viewport, the full page, or one element (by ref).',
+    description:
+      'Capture the visible viewport, the full page, or one element (by ref). Viewport screenshots use 1 image pixel = 1 CSS pixel, so coordinates read off the image can be passed straight to browser_mouse_xy.',
     inputSchema: obj({
       ref: { ...ref, description: 'Capture only this element.' },
       fullPage: { type: 'boolean', default: false },

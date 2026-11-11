@@ -7,36 +7,41 @@
 // Everything lives in a closed shadow root with pointer-events: none (except
 // the bar's buttons) so it never changes what the page receives.
 
+import { getPrefs, isDark, t, type Prefs } from '../i18n';
 import type { OverlayAction } from '../messages';
 
 const CSS = `
 :host{all:initial}
-.layer{position:fixed;inset:0;pointer-events:none;z-index:2147483647;font:13px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-.cursor{position:fixed;left:0;top:0;width:26px;height:26px;transform:translate(-100px,-100px);will-change:transform;opacity:0;transition:opacity .25s ease}
+.layer{position:fixed;inset:0;pointer-events:none;z-index:2147483647;font:500 13px/1.4 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --bg:#fff;--fg:#09090b;--muted:#71717a;--border:#e4e4e7;--danger:#dc2626;--primary:#18181b;--primary-fg:#fafafa}
+.layer.dark{--bg:#18181b;--fg:#fafafa;--muted:#a1a1aa;--border:#27272a;--danger:#f87171;--primary:#fafafa;--primary-fg:#18181b}
+.cursor{position:fixed;left:0;top:0;width:28px;height:28px;transform:translate(-100px,-100px);will-change:transform;opacity:0;transition:opacity .3s ease}
 .cursor.on{opacity:1}
-.cursor svg{display:block;transform-origin:3px 2px;filter:drop-shadow(0 4px 8px rgba(30,27,75,.35)) drop-shadow(0 1px 1px rgba(0,0,0,.25))}
-.bar{position:fixed;left:50%;bottom:18px;transform:translateX(-50%) translateY(20px);display:flex;align-items:center;gap:10px;padding:8px 8px 8px 14px;border-radius:14px;background:rgba(17,19,30,.92);color:#fff;box-shadow:0 10px 30px rgba(0,0,0,.3);backdrop-filter:blur(8px);opacity:0;transition:opacity .25s,transform .25s;pointer-events:none}
-.bar.top{bottom:auto;top:18px}
+.cursor svg{display:block;overflow:visible;transform-origin:4px 3px;transition:transform .12s ease-out;filter:drop-shadow(0 6px 10px rgba(49,46,129,.28)) drop-shadow(0 1px 2px rgba(0,0,0,.3))}
+.bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);box-shadow:0 10px 30px -10px rgba(0,0,0,.25),0 2px 6px -2px rgba(0,0,0,.08);opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none}
+.bar.top{bottom:auto;top:16px}
 .bar.on{opacity:1;transform:translateX(-50%) translateY(0);pointer-events:auto}
-.dot{width:8px;height:8px;border-radius:50%;background:#a78bfa;box-shadow:0 0 0 0 rgba(167,139,250,.7);animation:p 1.4s infinite}
-.paused .dot{background:#fbbf24;animation:none}
-@keyframes p{70%{box-shadow:0 0 0 8px rgba(167,139,250,0)}100%{box-shadow:0 0 0 0 rgba(167,139,250,0)}}
-.txt{max-width:46vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.txt b{font-weight:600}
-button{all:unset;cursor:pointer;font-weight:600;font-size:12px;padding:6px 12px;border-radius:9px}
-.stop{background:#ef4444;color:#fff}.stop:hover{background:#dc2626}
-.resume{background:#4f46e5;color:#fff}
+.dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 0 0 rgba(34,197,94,.6);animation:p 1.6s infinite}
+.paused .dot{background:#f59e0b;animation:none}
+@keyframes p{70%{box-shadow:0 0 0 6px rgba(34,197,94,0)}100%{box-shadow:0 0 0 0 rgba(34,197,94,0)}}
+.txt{white-space:nowrap}
+button{all:unset;cursor:pointer;font:500 12px/1 ui-sans-serif,system-ui,sans-serif;height:28px;padding:0 12px;border-radius:8px;display:inline-flex;align-items:center;border:1px solid var(--border);color:var(--danger);background:var(--bg);transition:background .15s}
+button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
+.paused button{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
 `;
 
-const CURSOR_SVG = `<svg width="26" height="26" viewBox="0 0 26 26"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#6366f1"/><stop offset="1" stop-color="#9333ea"/></linearGradient></defs><path d="M3 2.5 22 11.2l-8.1 2.3-3.7 7.8z" fill="url(#g)" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/></svg>`;
+// Rounded pointer: violet gradient body, white rim, soft inner highlight.
+const CURSOR_SVG = `<svg width="28" height="28" viewBox="0 0 28 28"><defs><linearGradient id="cma-g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#818cf8"/><stop offset=".55" stop-color="#6366f1"/><stop offset="1" stop-color="#7c3aed"/></linearGradient><linearGradient id="cma-h" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".55"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><path d="M4.6 3.2c-.5-.3-1.1.2-.9.7l6.6 19.2c.2.6 1.1.6 1.3 0l2.5-7.1c.1-.3.3-.5.6-.6l7.1-2.6c.6-.2.6-1.1 0-1.3z" fill="url(#cma-g)" stroke="#fff" stroke-width="2" stroke-linejoin="round"/><path d="M5.8 5.4 10.6 19l1.7-4.8c.2-.6.7-1.1 1.3-1.3l4.7-1.7z" fill="url(#cma-h)"/></svg>`;
 
 let host: HTMLElement | null = null;
-let parts: { cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement } | null = null;
+let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement } | null = null;
 let pos: { x: number; y: number } | null = null;
 let hideTimer: ReturnType<typeof setTimeout> | undefined;
 let frame = 0;
 let paused = false;
 let bowSide = 1;
+let prefs: Prefs = { lang: 'en', theme: 'light' };
+let currentLabelKey: 'bar_working' | 'bar_paused' = 'bar_working';
 
 function ensure() {
   if (parts && host?.isConnected) return parts;
@@ -44,7 +49,8 @@ function ensure() {
   const root = host.attachShadow({ mode: 'closed' });
   root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor">${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div></div>`;
   const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;
-  parts = { cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button') };
+  parts = { layer: q('.layer'), cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button') };
+  void loadPrefs();
   parts.btn.addEventListener('click', (e) => {
     e.stopPropagation();
     chrome.runtime.sendMessage({ type: paused ? 'resume' : 'stop' }).catch(() => {});
@@ -57,15 +63,28 @@ export function isOverlay(el: Element | null): boolean {
   return !!el && el === host;
 }
 
-function renderBar(label: string) {
+async function loadPrefs() {
+  prefs = await getPrefs();
+  applyPrefs();
+}
+
+function applyPrefs() {
+  if (!parts) return;
+  parts.layer.classList.toggle('dark', isDark(prefs.theme));
+  parts.txt.textContent = t(prefs.lang, paused ? 'bar_paused' : currentLabelKey);
+  parts.btn.textContent = t(prefs.lang, paused ? 'resume' : 'stop');
+}
+
+// The user can switch language or theme in the popup while a page is open.
+chrome.storage.onChanged.addListener((changes) => {
+  if (changes.prefs) void loadPrefs();
+});
+
+function renderBar() {
   const p = ensure();
   p.bar.classList.toggle('paused', paused);
-  p.txt.innerHTML = '';
-  const strong = document.createElement('b');
-  strong.textContent = paused ? 'Đã dừng AI' : 'Chrome MCP Agent';
-  p.txt.append(strong, document.createTextNode(paused ? ' · bấm Tiếp tục để AI làm tiếp' : ` · ${label}`));
-  p.btn.textContent = paused ? 'Tiếp tục' : 'Dừng';
-  p.btn.className = paused ? 'resume' : 'stop';
+  currentLabelKey = paused ? 'bar_paused' : 'bar_working';
+  applyPrefs();
   p.bar.classList.add('on');
 }
 
@@ -130,7 +149,8 @@ function moveTo(x: number, y: number, durationMs: number): Promise<void> {
       const vx = px - lastX;
       lastX = px;
       const tilt = Math.max(-14, Math.min(14, vx * 1.6)) * (1 - t);
-      place(px, py, tilt);
+      // Lift a little mid-flight, settle on arrival.
+      place(px, py, tilt, 1 + 0.08 * Math.sin(Math.PI * Math.min(1, t * 1.4)));
       if (t < 1) frame = requestAnimationFrame(tick);
       else {
         place(x, y, 0);
@@ -153,7 +173,7 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
   switch (action.type) {
     case 'show':
       paused = action.paused;
-      renderBar(action.label);
+      renderBar();
       break;
     case 'move':
       await moveTo(action.x, action.y, action.durationMs);

@@ -40,6 +40,18 @@ async function call(name: string, args: Record<string, unknown> = {}): Promise<T
   return { ...result, text };
 }
 
+/** Width and height from a base64 JPEG's SOF marker. */
+function jpegSize(b64: string): { width: number; height: number } {
+  const b = Buffer.from(b64, 'base64');
+  for (let i = 2; i < b.length; ) {
+    const marker = b[i + 1];
+    const len = b.readUInt16BE(i + 2);
+    if (marker >= 0xc0 && marker <= 0xc2) return { height: b.readUInt16BE(i + 5), width: b.readUInt16BE(i + 7) };
+    i += 2 + len;
+  }
+  throw new Error('not a JPEG');
+}
+
 /** Finds the ref of the first snapshot line containing `label` (and optionally a role). */
 function refOf(snapshot: string, label: string, role?: string): string {
   const line = snapshot.split('\n').find((l) => l.includes(label) && /\[ref=/.test(l) && (!role || l.includes(`- ${role}`)));
@@ -55,8 +67,9 @@ test.beforeAll(async () => {
   ctx = await chromium.launchPersistentContext(userDataDir, {
     channel: 'chromium',
     headless: true,
-    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`],
-    viewport: { width: 1280, height: 720 },
+    // Retina like most Macs (a real scale factor, not Playwright's emulation): screenshots must still be in CSS pixels.
+    args: [`--disable-extensions-except=${EXT}`, `--load-extension=${EXT}`, '--force-device-scale-factor=2', '--window-size=1280,800'],
+    viewport: null, // real window metrics, no Playwright emulation layered over the extension's debugger
   });
   let [sw] = ctx.serviceWorkers();
   sw ??= await ctx.waitForEvent('serviceworker');
@@ -192,6 +205,51 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(r.text).toContain('new browser_snapshot');
 });
 
+test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
+  await call('browser_navigate', { url: 'http://localhost:4100/sheet-host.html' });
+  let snap = (await call('browser_snapshot')).text;
+  const grid = refOf(snap, 'size=600x264', 'canvas');
+  expect(grid).toMatch(/^f\d+e\d+$/); // inside the cross-origin iframe
+  const paint = refOf(snap, 'size=400x140', 'canvas'); // inside the nested iframe
+  expect(paint).not.toBe(grid);
+
+  // Viewport screenshot is in CSS pixels and says how to use it.
+  const shot = await call('browser_screenshot');
+  const [, vw, vh] = /Viewport (\d+)x(\d+) px/.exec(shot.text)!;
+  expect(Number(vw)).toBeGreaterThan(1000);
+  expect(jpegSize(shot.content.find((c) => c.type === 'image')!.data!)).toEqual({ width: Number(vw), height: Number(vh) });
+
+  // Select cell C4 (column C = x 300..400, row 4 = y 96..120 on the grid canvas) and type like a user.
+  let r = await call('browser_mouse_xy', { ref: grid, x: 350, y: 108 });
+  expect(r.text).toContain('Chọn ô C4');
+  r = await call('browser_type', { text: 'Xin chào Sheets', submit: true });
+  expect(r.text).toContain('Đã ghi C4 = Xin chào Sheets');
+  // Enter moved the selection down: keep typing.
+  r = await call('browser_type', { text: '12345', submit: true });
+  expect(r.text).toContain('Đã ghi C5 = 12345');
+
+  // Element screenshot coordinates map to the same ref.
+  const cell = await call('browser_screenshot', { ref: grid });
+  expect(cell.text).toContain(`ref "${grid}"`);
+
+  // Paint canvas in the nested iframe: click and drag in element coordinates.
+  r = await call('browser_mouse_xy', { ref: paint, x: 40, y: 30 });
+  // Within a pixel: frames sit at fractional offsets and Retina rounds to device pixels.
+  const [px, py] = /Vẽ tại (\d+),(\d+)/.exec(r.text)!.slice(1).map(Number);
+  expect(Math.abs(px - 40)).toBeLessThanOrEqual(1);
+  expect(Math.abs(py - 30)).toBeLessThanOrEqual(1);
+  r = await call('browser_mouse_xy', { ref: paint, action: 'drag', x: 20, y: 20, toX: 300, toY: 110 });
+  const drag = /Kéo từ (\d+),(\d+) đến (\d+),(\d+)/.exec(r.text)!.slice(1).map(Number);
+  [20, 20, 300, 110].forEach((v, i) => expect(Math.abs(drag[i] - v)).toBeLessThanOrEqual(1));
+
+  // Raw viewport coordinates work too (top page heading area).
+  r = await call('browser_mouse_xy', { x: 5, y: 5 });
+  expect(r.isError).toBeFalsy();
+  r = await call('browser_mouse_xy', { x: 99999, y: 5 });
+  expect(r.isError).toBe(true);
+  await call('browser_navigate', { url: fixtures.url });
+});
+
 test('Stop pauses the agent until resumed', async () => {
   const [sw] = ctx.serviceWorkers();
   // Drive the same messages the popup and the in-page Stop button send.
@@ -201,11 +259,11 @@ test('Stop pauses the agent until resumed', async () => {
   let r = await call('browser_snapshot');
   expect(r.isError).toBe(true);
   expect(r.text).toContain('pressed Stop');
-  await expect(popup.locator('#paused-card')).toBeVisible();
+  await expect(popup.locator('#stop')).toHaveText('Resume');
   await popup.setViewportSize({ width: 360, height: 640 });
   await popup.screenshot({ path: 'test-results/popup.png' });
-  await popup.locator('#resume').click();
-  await expect(popup.locator('#paused-card')).toBeHidden();
+  await popup.locator('#stop').click();
+  await expect(popup.locator('#stop')).toHaveText('Stop');
   await popup.close();
   r = await call('browser_snapshot');
   expect(r.isError, r.text).toBeFalsy();
@@ -219,7 +277,7 @@ test('reconnects after the connection drops', async () => {
   for (let i = 0; i < 3; i++) await page.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }));
   const r = await call('browser_tabs', { action: 'list' });
   expect(r.isError, r.text).toBeFalsy();
-  await expect(page.locator('#status-text')).toHaveText('Đã kết nối', { timeout: 15_000 });
+  await expect(page.locator('#status-text')).toHaveText('Connected', { timeout: 15_000 });
   await page.close();
 });
 
@@ -233,13 +291,14 @@ test('ChatGPT connects with the connection code shown in the extension', async (
   await popup.locator('#login').click();
   await expect(popup.locator('#code')).not.toHaveText('E2E00-00000', { timeout: 15_000 });
   await expect(popup.locator('#code')).toHaveText(/^[A-Z0-9]{5}-[A-Z0-9]{5}$/, { timeout: 15_000 });
-  await expect(popup.locator('#status-text')).toHaveText('Đã kết nối', { timeout: 15_000 });
+  await expect(popup.locator('#status-text')).toHaveText('Connected', { timeout: 15_000 });
   const code = (await popup.locator('#code').textContent())!;
   await popup.setViewportSize({ width: 360, height: 600 });
   await popup.screenshot({ path: 'test-results/popup-code.png' });
 
   // The ChatGPT side: dynamic registration, consent page with the code, token exchange, tool call.
-  const api = await http.newContext({ baseURL: GATEWAY });
+  // A fresh client IP per run so the wrong-code limiter (per IP, 10 minutes) starts from zero.
+  const api = await http.newContext({ baseURL: GATEWAY, extraHTTPHeaders: { 'cf-connecting-ip': `10.0.${Date.now() % 250}.${Math.floor(Math.random() * 250)}` } });
   const redirectUri = 'https://chatgpt.com/connector_platform_oauth_redirect';
   const reg = await (await api.post('/oauth/register', {
     data: { client_name: 'ChatGPT', redirect_uris: [redirectUri], token_endpoint_auth_method: 'none', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'] },

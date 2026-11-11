@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="vi">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -7,59 +7,7 @@
 <link rel="stylesheet" href="popup.css">
 </head>
 <body>
-<div class="app">
-  <header>
-    <div class="logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 3l7 17 2.5-7L21 10.5z"/></svg></div>
-    <div class="title"><b>Chrome MCP Agent</b><span>Cho ChatGPT dùng Chrome của bạn</span></div>
-  </header>
-
-  <section id="signed-out" hidden>
-    <div class="hero">
-      <div class="hero-icon">✨</div>
-      <h1>Chào bạn!</h1>
-      <p>Bấm một lần để ChatGPT có thể đọc, bấm và gõ trong Chrome giúp bạn. Không cần tài khoản.</p>
-    </div>
-    <label id="password-field" class="password" hidden><b>Mật khẩu nhóm</b><input id="password" type="password" placeholder="Nhập mật khẩu được chia sẻ"></label>
-    <button id="login" class="primary block">Kết nối Chrome này</button>
-    <p id="login-error" class="error" hidden></p>
-  </section>
-
-  <section id="signed-in" hidden>
-    <div class="code-card">
-      <div class="code-head"><span>Mã kết nối của bạn</span><div class="status" id="status"><span class="dot"></span><span id="status-text"></span></div></div>
-      <div class="code-row"><code id="code"></code><button id="copy-code" class="ghost small">Copy</button></div>
-      <span class="code-hint">Dán mã này khi ChatGPT hỏi lúc kết nối. Đừng chia sẻ cho người khác.</span>
-    </div>
-    <p id="status-error" class="hint" hidden></p>
-    <button id="use-here" class="primary block" hidden>Dùng Chrome này</button>
-
-    <div id="paused-card" class="paused-card" hidden>
-      <b>Bạn đã dừng AI</b>
-      <span>ChatGPT sẽ không điều khiển được cho tới khi bạn bấm Tiếp tục.</span>
-      <button id="resume" class="primary">Tiếp tục</button>
-    </div>
-
-    <label class="toggle">
-      <div><b>Cho phép AI điều khiển Chrome</b><span>Tắt khi bạn muốn tạm ngừng hoàn toàn</span></div>
-      <input type="checkbox" id="enabled"><i></i>
-    </label>
-
-    <details class="setup" id="setup">
-      <summary>Kết nối với ChatGPT <span class="chev">›</span></summary>
-      <ol>
-        <li>Mở ChatGPT → <b>Cài đặt</b> → <b>Apps &amp; Connectors</b> → <b>Advanced</b>, bật <b>Developer mode</b>.</li>
-        <li>Bấm <b>Create</b>, đặt tên <i>Chrome MCP Agent</i>, dán địa chỉ dưới đây, chọn <b>OAuth</b>.</li>
-        <li>Trang cho phép hiện ra: dán <b>mã kết nối</b> ở trên, bấm <b>Cho phép</b>. Xong!</li>
-      </ol>
-      <div class="url"><code id="mcp-url"></code><button id="copy" class="ghost">Copy</button></div>
-    </details>
-
-    <div class="log-head"><b>Hoạt động gần đây</b><button id="stop" class="danger small">Dừng AI</button></div>
-    <ul id="log" class="log"></ul>
-
-    <footer><button id="logout" class="link">Ngắt kết nối Chrome này</button><span id="version"></span></footer>
-  </section>
-</div>
+<div id="root"></div>
 <script src="popup.js"></script>
 </body>
 </html>

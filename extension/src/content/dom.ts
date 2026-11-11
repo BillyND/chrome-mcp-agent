@@ -82,6 +82,7 @@ const ROLE_BY_TAG: Record<string, string> = {
   audio: 'audio',
   label: 'label',
   progress: 'progressbar',
+  canvas: 'canvas',
   meter: 'meter',
 };
 
@@ -110,7 +111,7 @@ export function roleOf(el: Element): string | null {
 
 const INTERACTIVE_ROLES = new Set([
   'button', 'link', 'textbox', 'searchbox', 'checkbox', 'radio', 'combobox', 'listbox', 'option', 'menuitem',
-  'menuitemcheckbox', 'menuitemradio', 'tab', 'switch', 'slider', 'spinbutton', 'treeitem', 'gridcell', 'iframe',
+  'menuitemcheckbox', 'menuitemradio', 'tab', 'switch', 'slider', 'spinbutton', 'treeitem', 'gridcell', 'iframe', 'canvas',
 ]);
 
 export function isInteractive(el: Element, role: string | null): boolean {

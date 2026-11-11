@@ -142,6 +142,13 @@ async function locate(tabId: number, ref: string, scroll = true): Promise<Target
   };
 }
 
+/** The element's box in top-level viewport coordinates. */
+function elementBox(t: Target) {
+  const ox = t.x - t.prep.point.x;
+  const oy = t.y - t.prep.point.y;
+  return { x: t.prep.rect.x + ox, y: t.prep.rect.y + oy, width: t.prep.rect.width, height: t.prep.rect.height };
+}
+
 // ---- raw input ----------------------------------------------------------------
 
 function modifierMask(mods: string[] = []): number {
@@ -345,6 +352,18 @@ async function fetchAsBase64(url: string): Promise<{ base64: string; mimeType: s
   return { base64: btoa(bin), mimeType: res.headers.get('content-type')?.split(';')[0] ?? 'application/octet-stream' };
 }
 
+/** Pixel width from a base64 JPEG's SOF marker. */
+function jpegWidth(b64: string): number | null {
+  const head = atob(b64.slice(0, 80_000));
+  for (let i = 2; i + 8 < head.length; ) {
+    const marker = head.charCodeAt(i + 1);
+    const len = (head.charCodeAt(i + 2) << 8) | head.charCodeAt(i + 3);
+    if (marker >= 0xc0 && marker <= 0xc2) return (head.charCodeAt(i + 7) << 8) | head.charCodeAt(i + 8);
+    i += 2 + len;
+  }
+  return null;
+}
+
 async function screenshot(tabId: number, clip?: { x: number; y: number; width: number; height: number }, full = false): Promise<ToolContent> {
   const metrics = await send<any>(tabId, 'Page.getLayoutMetrics');
   const vp = metrics.cssLayoutViewport;
@@ -357,10 +376,17 @@ async function screenshot(tabId: number, clip?: { x: number; y: number; width: n
   } else if (clip) {
     params = { ...params, captureBeyondViewport: true, clip: { x: clip.x + vp.pageX, y: clip.y + vp.pageY, width: Math.max(1, clip.width), height: Math.max(1, clip.height), scale: 1 } };
   } else {
-    const scale = Math.min(1, 1600 / vp.clientWidth);
-    params = { ...params, clip: { x: vp.pageX, y: vp.pageY, width: vp.clientWidth, height: vp.clientHeight, scale } };
+    params = { ...params, clip: { x: vp.pageX, y: vp.pageY, width: vp.clientWidth, height: vp.clientHeight, scale: 1 } };
   }
   let shot = await send<{ data: string }>(tabId, 'Page.captureScreenshot', params);
+  // Captures come out in device pixels (2x on Retina). Rescale so 1 image pixel = 1 CSS pixel
+  // (or the intended downscale for full pages), measured from the image itself.
+  const want = params.clip.width * params.clip.scale;
+  const got = jpegWidth(shot.data);
+  if (got && Math.abs(got - want) > 1) {
+    params = { ...params, clip: { ...params.clip, scale: (params.clip.scale * want) / got } };
+    shot = await send<{ data: string }>(tabId, 'Page.captureScreenshot', params);
+  }
   if (shot.data.length > 3_000_000) {
     shot = await send<{ data: string }>(tabId, 'Page.captureScreenshot', { ...params, quality: 45, clip: params.clip && { ...params.clip, scale: (params.clip.scale ?? 1) * 0.6 } });
   }
@@ -482,6 +508,14 @@ const TOOLS: Record<string, ToolFn> = {
   },
 
   async browser_type(args) {
+    if (!args.ref) {
+      // Canvas apps (Google Sheets, Docs, Figma) take keys on a hidden focused element.
+      const tab = await prepareTab(args, 'Gõ phím');
+      await typeText(tab.id!, String(args.text ?? ''), !!args.slowly);
+      if (args.submit) await pressKey(tab.id!, 'Enter');
+      await sleep(200);
+      return afterAction(tab, `Typed ${JSON.stringify(String(args.text).slice(0, 80))} into the focused element${args.submit ? ' and pressed Enter' : ''}.`);
+    }
     const tab = await prepareTab(args, `Gõ vào ${args.element ?? args.ref}`);
     const t = await locate(tab.id!, args.ref);
     await glide(tab.id!, t.x, t.y);
@@ -502,6 +536,78 @@ const TOOLS: Record<string, ToolFn> = {
     if (args.submit) await pressKey(tab.id!, 'Enter');
     await sleep(150);
     return afterAction(tab, `Typed ${JSON.stringify(String(args.text).slice(0, 80))} into ${t.prep.label}${args.submit ? ' and pressed Enter' : ''}.`);
+  },
+
+  async browser_mouse_xy(args) {
+    const action = (args.action as string) ?? 'click';
+    const tab = await prepareTab(args, action === 'drag' ? 'Kéo chuột' : 'Bấm chuột');
+    const tabId = tab.id!;
+    let ox = 0;
+    let oy = 0;
+    let where = 'the page';
+    let target: Target | undefined;
+    if (args.ref) {
+      target = await locate(tabId, args.ref, true);
+      const box = elementBox(target);
+      ox = box.x;
+      oy = box.y;
+      where = target.prep.label;
+    }
+    // CDP takes fractional CSS pixels; rounding here would shift canvas clicks by a pixel.
+    const x = ox + Number(args.x);
+    const y = oy + Number(args.y);
+    const vp = (await send<any>(tabId, 'Page.getLayoutMetrics')).cssLayoutViewport;
+    if (x < 0 || y < 0 || x > vp.clientWidth || y > vp.clientHeight) {
+      throw new ToolError(`Point (${x}, ${y}) is outside the visible viewport (${Math.round(vp.clientWidth)}x${Math.round(vp.clientHeight)}). Scroll it into view first.`);
+    }
+    await glide(tabId, x, y);
+    checkAbort();
+    const modifiers = args.modifiers as string[] | undefined;
+    // With a ref we know the frame, so a press the browser misroutes can be detected and redone in-frame.
+    const probed = target && action !== 'move'
+      ? await frameCall(tabId, target.frameId, { cmd: 'arm-click-probe', ref: target.local }, 3000).then(() => true, () => false)
+      : false;
+    if (action === 'move') {
+      await mouse(tabId, 'mouseMoved', x, y, { modifiers: modifierMask(modifiers) });
+    } else if (action === 'drag') {
+      if (args.toX === undefined || args.toY === undefined) throw new ToolError('toX and toY are required for drag.');
+      const ex = ox + Number(args.toX);
+      const ey = oy + Number(args.toY);
+      await mouse(tabId, 'mouseMoved', x, y);
+      await mouse(tabId, 'mousePressed', x, y, { button: 'left', buttons: 1, clickCount: 1 });
+      const steps = 14;
+      for (let i = 1; i <= steps; i++) {
+        await mouse(tabId, 'mouseMoved', x + ((ex - x) * i) / steps, y + ((ey - y) * i) / steps, { button: 'left', buttons: 1 });
+        await sleep(12);
+      }
+      await mouse(tabId, 'mouseReleased', ex, ey, { button: 'left', buttons: 0, clickCount: 1 });
+      await overlay(tabId, { type: 'move', x: ex, y: ey, durationMs: 300 });
+      lastCursor.set(tabId, { x: ex, y: ey });
+    } else {
+      await clickAt(tabId, x, y, {
+        button: action === 'right_click' ? 'right' : 'left',
+        clickCount: action === 'double_click' ? 2 : 1,
+        modifiers,
+      });
+    }
+    let fallback = false;
+    if (probed && target && !sessionOf(tabId)?.dialog) {
+      const hit = await frameCall<boolean>(tabId, target.frameId, { cmd: 'read-click-probe' }, 3000).catch(() => true);
+      if (!hit) {
+        fallback = true;
+        await frameCall(tabId, target.frameId, {
+          cmd: 'synthetic-pointer',
+          ref: target.local,
+          from: { x: Number(args.x), y: Number(args.y) },
+          to: action === 'drag' ? { x: Number(args.toX), y: Number(args.toY) } : undefined,
+          button: action === 'right_click' ? 'right' : 'left',
+          clickCount: action === 'double_click' ? 2 : 1,
+        }).catch(() => {});
+      }
+    }
+    await sleep(250);
+    const verb = { click: 'Clicked', double_click: 'Double-clicked', right_click: 'Right-clicked', move: 'Moved the mouse to', drag: 'Dragged from' }[action] ?? action;
+    return afterAction(tab, `${verb} (${args.x}, ${args.y})${args.ref ? ` of ${where}` : ''}${action === 'drag' ? ` to (${args.toX}, ${args.toY})` : ''} → viewport (${Math.round(x)}, ${Math.round(y)})${fallback ? ' (delivered as DOM events inside its frame)' : ''}.`, 6000);
   },
 
   async browser_fill_form(args) {
@@ -622,14 +728,21 @@ const TOOLS: Record<string, ToolFn> = {
     await overlay(tab.id!, { type: 'hide' });
     await sleep(120);
     let image: ToolContent;
+    let note: string;
     if (args.ref) {
       const t = await locate(tab.id!, args.ref);
-      const offset = { x: t.x - t.prep.point.x, y: t.y - t.prep.point.y };
-      image = await screenshot(tab.id!, { x: t.prep.rect.x + offset.x, y: t.prep.rect.y + offset.y, width: t.prep.rect.width, height: t.prep.rect.height });
+      const box = elementBox(t);
+      image = await screenshot(tab.id!, box);
+      note = `Element ${t.prep.label}: ${Math.round(box.width)}x${Math.round(box.height)} px. Image pixel (x,y) = browser_mouse_xy with ref "${args.ref}" and the same x,y.`;
+    } else if (args.fullPage) {
+      image = await screenshot(tab.id!, undefined, true);
+      note = 'Full page (may be scaled down). For clicks, scroll the area into view and take a viewport screenshot.';
     } else {
-      image = await screenshot(tab.id!, undefined, !!args.fullPage);
+      image = await screenshot(tab.id!);
+      const vp = (await send<any>(tab.id!, 'Page.getLayoutMetrics')).cssLayoutViewport;
+      note = `Viewport ${Math.round(vp.clientWidth)}x${Math.round(vp.clientHeight)} px; image pixel (x,y) = browser_mouse_xy x,y (no ref).`;
     }
-    return [{ type: 'text', text: await pageHeader(tab) }, image];
+    return [{ type: 'text', text: `${await pageHeader(tab)}\n${note}` }, image];
   },
 
   async browser_get_text(args) {

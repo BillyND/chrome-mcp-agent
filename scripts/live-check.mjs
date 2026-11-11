@@ -37,7 +37,7 @@ try {
   popup = await ctx.newPage();
   await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
   await popup.locator('#login').click();
-  await popup.locator('#status-text', { hasText: 'Đã kết nối' }).waitFor({ timeout: 30_000 });
+  await popup.locator('#status-text', { hasText: /Connected|Đã kết nối/ }).waitFor({ timeout: 30_000 });
   const code = (await popup.locator('#code').textContent()).trim();
   step(`extension connected to ${gateway} with code ${code.slice(0, 2)}***`);
 

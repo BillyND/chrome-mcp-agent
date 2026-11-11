@@ -44,7 +44,16 @@ const common = {
 };
 await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/background/index.ts')], outfile: path.join(out, 'background.js'), format: 'esm' });
 await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/content/index.ts')], outfile: path.join(out, 'content.js'), format: 'iife' });
-await esbuild.build({ ...common, entryPoints: [path.join(ext, 'src/popup.ts')], outfile: path.join(out, 'popup.js'), format: 'iife' });
+await esbuild.build({
+  ...common,
+  entryPoints: [path.join(ext, 'src/popup/app.tsx')],
+  outfile: path.join(out, 'popup.js'),
+  format: 'iife',
+  jsx: 'automatic',
+  define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
+});
+// Tailwind v4 compiles the shadcn theme and the classes used by the popup.
+execFileSync(process.execPath, [path.join(root, 'node_' + 'modules', '@tailwindcss', 'cli', 'dist', 'index.mjs'), '-i', path.join(ext, 'src/popup/styles.css'), '-o', path.join(out, 'popup.css'), '--minify'], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));

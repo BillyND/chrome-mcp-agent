@@ -39,6 +39,7 @@ export type FrameRequest =
   | { cmd: 'arm-click-probe'; ref: string }
   | { cmd: 'read-click-probe' }
   | { cmd: 'synthetic-click'; ref: string; button: string; clickCount: number; modifiers: string[] }
+  | { cmd: 'synthetic-pointer'; ref: string; from: { x: number; y: number }; to?: { x: number; y: number }; button: string; clickCount: number }
   | { cmd: 'overlay'; action: OverlayAction };
 
 export type OverlayAction =

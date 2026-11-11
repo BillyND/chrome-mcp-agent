@@ -15,6 +15,7 @@ const LOG_LIMIT = 60;
 
 export const state = {
   status: 'signed-out' as ConnectionStatus,
+  /** Error code the popup translates (see popup i18n `err_*`). */
   lastError: undefined as string | undefined,
   /** Set by the Stop button; every tool call fails until the user resumes. */
   paused: false,
