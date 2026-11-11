@@ -6,9 +6,10 @@
   "scripts": {
     "dev": "wrangler dev --config worker/wrangler.jsonc --port 8787",
     "pack:ext": "node scripts/pack-extension.mjs",
-    "typecheck": "tsc -p worker && tsc -p extension",
+    "build:local": "node scripts/build-local.mjs",
+    "typecheck": "tsc -p worker && tsc -p extension && tsc -p local",
     "test": "vitest run",
-    "test:e2e": "node scripts/pack-extension.mjs --dev && playwright test",
+    "test:e2e": "node scripts/pack-extension.mjs --dev && npm run build:local && playwright test",
     "deploy": "wrangler deploy --config worker/wrangler.jsonc",
     "setup": "node scripts/setup.mjs",
     "check:live": "node scripts/pack-extension.mjs && node scripts/live-check.mjs"
@@ -34,10 +35,12 @@
     "@types/node": "^26.6.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/ws": "^8.18.2",
     "esbuild": "^0.28.2",
     "tailwindcss": "^4.3.5",
     "typescript": "^7.0.2",
     "vitest": "^5.1.0",
-    "wrangler": "^4.160.1"
+    "wrangler": "^4.160.1",
+    "ws": "^8.22.2"
   }
 }
