@@ -184,6 +184,9 @@ export function installCdpListeners() {
       case 'Network.responseReceived': {
         const e = s.network.get(params.requestId);
         if (e) e.status = params.response.status;
+        // Once headers are in, the request counts as settled for idle detection (bodies may stream on).
+        s.inflight.delete(params.requestId);
+        s.lastNetworkAt = Date.now();
         break;
       }
       case 'Network.loadingFailed': {

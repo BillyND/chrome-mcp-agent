@@ -27,6 +27,7 @@ function* textNodes(root: Node): Generator<Text> {
 /** All elements matching `selector` under `root`, including inside shadow roots. */
 function queryAllDeep(root: ParentNode, selector: string): Element[] {
   const found = [...root.querySelectorAll(selector)];
+  if (root instanceof Element && root.matches(selector)) found.unshift(root);
   for (const el of root.querySelectorAll('*')) {
     const sr = shadowRootOf(el);
     if (sr) found.push(...queryAllDeep(sr, selector));
@@ -133,7 +134,7 @@ function forms(root: ParentNode, max: number, prefix: string) {
   const out = (queryAllDeep(root, 'form') as HTMLFormElement[]).slice(0, 20).map((form) => {
     const fields = all.filter((f) => (f as HTMLInputElement).form === form).slice(0, max);
     fields.forEach((f) => inForm.add(f));
-    return { ref: prefix + refFor(form), name: accessibleName(form) || form.getAttribute('name') || undefined, action: form.action || undefined, method: form.method, fields: fields.map((f) => field(f, prefix)) };
+    return { ref: prefix + refFor(form), name: form.getAttribute('aria-label') || form.getAttribute('name') || form.id || undefined, action: form.action || undefined, method: form.method, fields: fields.map((f) => field(f, prefix)) };
   });
   const loose = all.filter((f) => !inForm.has(f)).slice(0, max);
   if (loose.length) out.push({ ref: '', name: '(fields outside a form)', action: undefined, method: '', fields: loose.map((f) => field(f, prefix)) });

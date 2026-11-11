@@ -80,13 +80,38 @@ draw();
 c.addEventListener('mousedown',e=>{s=[e.offsetX,e.offsetY];o.textContent='Vẽ tại '+e.offsetX+','+e.offsetY;});
 c.addEventListener('mouseup',e=>{if(s&&(Math.abs(e.offsetX-s[0])>20||Math.abs(e.offsetY-s[1])>20)){x.beginPath();x.moveTo(s[0],s[1]);x.lineTo(e.offsetX,e.offsetY);x.stroke();o.textContent='Kéo từ '+s[0]+','+s[1]+' đến '+e.offsetX+','+e.offsetY;}s=null;});
 </script></body>`,
+  // Structured content for browser_find / browser_extract / select / wait tests.
+  '/data.html': `<!doctype html><html lang="vi"><head><meta charset="utf-8"><title>Data Page</title>
+<meta name="description" content="Mô tả trang dữ liệu"><meta property="og:title" content="OG Dữ liệu">
+<link rel="canonical" href="${SITE_A}/data.html"></head><body>
+<h1>Bảng giá</h1><h2>Chi tiết sản phẩm</h2>
+<a href="/index.html">Về trang chủ</a> <a href="https://example.com/x">Ví dụ ngoài</a>
+<table><caption>Giá trái cây</caption><thead><tr><th>Tên</th><th>Giá</th></tr></thead>
+<tbody><tr><td>Táo</td><td>10</td></tr><tr><td>Cam</td><td>20</td></tr></tbody></table>
+<form name="order" action="/submit" method="post"><label>Email nhận hàng <input name="email" type="email" required></label>
+<select name="size" aria-label="Cỡ"><option>S</option><option>M</option></select>
+<label><input type="checkbox" name="gift"> Quà tặng</label></form>
+<p id="para">Câu cần chọn nằm ở đây, đừng bỏ sót.</p>
+<input id="paste-target" aria-label="Dán vào đây">
+<iframe title="Khung dữ liệu" src="${SITE_B}/frame-data.html" width="400" height="80"></iframe>
+<script>
+setTimeout(()=>{const d=document.createElement('div');d.id='late';d.textContent='Đã tải xong';document.body.appendChild(d)},800);
+setTimeout(()=>fetch('/slow.json').then(r=>r.text()).then(()=>{window.__done=true}),150);
+</script></body></html>`,
+  '/frame-data.html': `<!doctype html><meta charset="utf-8"><body><p>Mã khuyến mãi ẩn trong iframe</p><a href="/x">Liên kết trong khung</a></body>`,
   '/nested.html': `<!doctype html><meta charset="utf-8"><body><button onclick="this.nextElementSibling.textContent='Lồng OK'">Nút lồng</button><span></span></body>`,
 };
 
 function serve(port, host) {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
-      const body = pages[new URL(req.url, 'http://x').pathname === '/' ? '/index.html' : new URL(req.url, 'http://x').pathname];
+      const pathname = new URL(req.url, 'http://x').pathname;
+      if (pathname === '/slow.json') {
+        // A request that stays in flight long enough for "network idle" waits to matter.
+        setTimeout(() => res.writeHead(200, { 'content-type': 'application/json' }).end('{"ok":true}'), 900);
+        return;
+      }
+      const body = pages[pathname === '/' ? '/index.html' : pathname];
       if (!body) {
         res.writeHead(404).end('not found');
         return;
