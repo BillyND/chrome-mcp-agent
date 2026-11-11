@@ -27,6 +27,9 @@ test.beforeAll(async () => {
   const tabs = await call('browser_tabs', { action: 'list' });
   const tabId = Number(/\[(\d+)\]/.exec(tabs.text)?.[1]);
   await call('browser_tabs', { action: 'select', tabId });
+  // browser_evaluate asks the user per host; pre-allow it (stored as site rules "script:<host>") on the sites that use it.
+  const hosts = ['en.wikipedia.org', 'httpbin.org', 'the-internet.herokuapp.com', 'localhost', 'react.dev', 'shoelace.style', 'docs.google.com', 'excalidraw.com'];
+  await h.sw.evaluate((list) => chrome.storage.local.set({ siteRules: Object.fromEntries(list.map((host) => [`script:${host}`, 'allow'])) }), hosts);
 });
 test.afterAll(async () => {
   await stopHarness(h);
@@ -232,6 +235,23 @@ test.describe('real sites', () => {
     await until(async () => (await call('browser_find', { text: 'Alexandra' })).text, /textbox "Alexandra"/);
   });
 
+  test('Excalidraw (canvas drawing app): shortcut keys, drag shapes with mouse_xy, screenshot', async () => {
+    await open('https://excalidraw.com/');
+    await until(async () => await snapshot({ interactiveOnly: false, maxChars: 3000 }), /button "Rectangle"/, 40_000);
+    await call('browser_wait_for', { time: 2 });
+    const draw = async (key: string, x: number, y: number, toX: number, toY: number) => {
+      expect((await call('browser_press_key', { key })).isError).toBeFalsy();
+      const r = await call('browser_mouse_xy', { action: 'drag', x, y, toX, toY });
+      expect(r.isError, r.text).toBeFalsy();
+    };
+    await draw('r', 420, 300, 620, 420);
+    await draw('o', 700, 300, 900, 420);
+    // Excalidraw autosaves to localStorage a moment after each change.
+    await expect.poll(async () => await evalJson('JSON.parse(localStorage.getItem("excalidraw") || "[]").map((e) => e.type)'), { timeout: 15_000 }).toEqual(['rectangle', 'ellipse']);
+    const shot = await call('browser_screenshot');
+    expect(shot.content.some((c) => c.type === 'image' && (c.data?.length ?? 0) > 5000)).toBe(true);
+  });
+
   test('the-internet: select option, checkbox toggle', async () => {
     await open('https://the-internet.herokuapp.com/dropdown');
     let snap = await snapshot();
@@ -327,7 +347,8 @@ test.describe('real sites', () => {
     const waited = await call('browser_wait_for', { selector: '#finish', timeout: 20 });
     expect(waited.isError, waited.text).toBeFalsy();
     expect(await text()).toContain('Hello World!');
-    // The loading bar is gone again.
+    // Regression: selectorGone used to count display:none elements as still present, so it timed out here
+    // although #loading is hidden after the load; it now means "no visible match", as the tool description says.
     const gone = await call('browser_wait_for', { selectorGone: '#loading', timeout: 5 });
     expect(gone.isError, gone.text).toBeFalsy();
   });

@@ -142,4 +142,6 @@ Chạy e2e trên cổng riêng: `E2E_PORT=8795 E2E_FIXTURE_PORT=4300 HELMSMAN_PO
 
 `tests/safety.e2e.ts` kiểm tra lớp an toàn bằng click chuột thật vào hộp thoại trên trang (quy tắc trang, hành động nhạy cảm, chặn cứng, injection ẩn, trao lại, nhật ký kiểm tra, popup); `tests/safety.test.ts` là unit test cho bộ phân loại. Hai bộ e2e cũ chạy kèm một "người dùng giả" tự bấm nút đồng ý trên hộp thoại (`tests/support/prompts.ts`).
 
+`tests/real-sites.e2e.ts` chạy trên các website thật (Wikipedia, Google Sheets công khai, MDN, react.dev, shoelace, Excalidraw, the-internet…), chỉ chạy khi có `REAL_SITES=1` (`npm run test:real`, cần Internet). **Chrome Web Store**: nội dung đăng ký, giải thích quyền và ảnh nằm trong `docs/store/` (`listing.md`, `screenshots/`; tạo lại ảnh bằng `npm run store:shots`); `npm run check:store` kiểm tra manifest, icon và file zip bản production; chính sách quyền riêng tư phục vụ tại `/privacy`.
+
 Bộ e2e kiểm tra: click, gõ tiếng Việt, contenteditable, select và checkbox, closed shadow DOM, iframe cùng nguồn, iframe khác nguồn, iframe lồng 3 tầng, phím tắt, hộp thoại confirm, kéo thả HTML5, upload file, chạy JS trong iframe khác nguồn, cuộn, chờ chữ xuất hiện, screenshot, network log, back/forward, nút Dừng/Tiếp tục và tự nối lại, và luồng ChatGPT nhập mã kết nối → token → gọi tool → ngắt kết nối thì mất quyền.
