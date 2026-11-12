@@ -181,6 +181,8 @@ ${LOCAL_CHECK}
   ];
 }
 
+const DOWNLOAD = `<div class="row" style="margin-top:12px"><a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension (.zip)', 'Download extension (.zip)')}</a></div>`;
+
 const tabItem = `${segmentedItemClass} h-8 px-3 text-[13px]`;
 
 export function landingPage(publicUrl: string): string {
@@ -194,9 +196,9 @@ export function landingPage(publicUrl: string): string {
     'Helmsman',
     `<section class="hero"><h1>Helmsman</h1>
 <p class="muted">${bi('Cho ChatGPT, Claude và các AI khác dùng Chrome của bạn: đọc trang, bấm, gõ, điền form.', 'Let ChatGPT, Claude and other AI assistants use your Chrome: read pages, click, type and fill forms.')}</p>
-<a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a></section>
+${DOWNLOAD}</section>
 <div class="card"><ol class="steps">
-${step(bi('Cài extension', 'Install the extension'), bi('Giải nén file zip. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.', 'Unzip the file. Open <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.'))}
+${step(bi('Cài extension', 'Install the extension'), bi('Tải file zip rồi giải nén. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.', 'Download the zip and unzip it. Open <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.'), DOWNLOAD)}
 </ol></div>
 <h2 class="section-title">${bi('Kết nối với AI của bạn', 'Connect your AI')}</h2>
 <div class="card" data-tabs><div role="tablist" aria-label="AI" class="${segmentedClass} tablist">${tabs}</div>
