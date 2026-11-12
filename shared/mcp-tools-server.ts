@@ -18,6 +18,7 @@ Workflow: browser_tabs (list, or "new" for a tab of your own) -> browser_snapsho
 - Save tokens: browser_snapshot has mode "diff", ref (one subtree), interactiveOnly and depth. Output that was cut ends with a note: continue with browser_read_more {handle, offset}.
 - Secrets: never ask for passwords or API keys. If the user saved some, browser_secrets_list shows their names; type one with {{secret:NAME}} in browser_type / browser_fill_form. The real value never reaches you.
 - browser_workflow records what you do and replays it later (also offered as MCP prompts).
+- Writing code in a web editor (W3Schools, CodePen, GitHub, VS Code web…): always send complete, properly formatted code with consistent indentation, then read it back to check the formatting.
 Several tabs and several agents:
 - Several AI agents can use the same Chrome at once. Each has its own default tab and its own Chrome tab group (titled with the agent's name and a colour); never touch a tab another agent is using unless the user asked.
 - Calls that omit tabId act on your default tab. Pass tabId (from browser_tabs or a result's "Tab N" line) to work in a specific tab; browser_tabs "new" opens another tab of your own in the background.
