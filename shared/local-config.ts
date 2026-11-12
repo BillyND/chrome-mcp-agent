@@ -18,5 +18,6 @@ export function localServer(gateway: string, port = DEFAULT_LOCAL_PORT): StdioSe
 /** The command line, for clients configured with "<name> -- <command>" (Claude Code, Codex, VS Code). */
 export const localCommand = (gateway: string): string => ['npx', ...localServer(gateway).args].join(' ');
 
-/** One-line `mcpServers` config (Claude Desktop, Cursor); the port only appears when it is not the default. */
-export const localSnippet = (gateway: string, port = DEFAULT_LOCAL_PORT): string => JSON.stringify({ mcpServers: { helmsman: localServer(gateway, port) } });
+/** `mcpServers` config (Claude Desktop, Cursor); the port only appears when it is not the default. `indent` pretty-prints it. */
+export const localSnippet = (gateway: string, port = DEFAULT_LOCAL_PORT, indent?: number): string =>
+  JSON.stringify({ mcpServers: { helmsman: localServer(gateway, port) } }, null, indent);

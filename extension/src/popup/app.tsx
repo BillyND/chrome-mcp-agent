@@ -53,6 +53,20 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
+/** Text shown in full (scrolls sideways when long) with a Copy button in its corner. */
+function CodeBox({ id, value, label }: { id: string; value: string; label: string }) {
+  return (
+    <div className="relative">
+      <pre id={id} className="overflow-x-auto rounded-md border bg-muted py-2.5 pr-12 pl-3 font-mono text-xs leading-relaxed">
+        {value}
+      </pre>
+      <div className="absolute top-1 right-1">
+        <CopyButton value={value} label={label} />
+      </div>
+    </div>
+  );
+}
+
 function App() {
   const prefs = usePrefs();
   const [s, setState] = useState<PopupState | null>(null);
@@ -90,7 +104,7 @@ function App() {
   const statusKey = active && s.paused ? 'paused' : headerStatus;
   const statusText = active && s.paused ? tr('paused') : tr(`status_${headerStatus}` as Key);
   const localText = s.local.status === 'connecting' ? tr('localWaiting') : tr(`status_${s.local.status}` as Key);
-  const snippet = localSnippet(s.gateway, s.local.port);
+  const snippet = localSnippet(s.gateway, s.local.port, 2);
   const error = s.lastError ? tr(`err_${s.lastError}` as Key) : '';
   const mcpUrl = `${s.gateway}/mcp`;
   const busy = pending === 'connect' || (s.status === 'connecting' && !s.code);
@@ -154,12 +168,7 @@ function App() {
                 {tr('howTo')}
               </a>
             </div>
-            <div className="flex items-center justify-between gap-2">
-              <span id="mcp-url" className="min-w-0 truncate font-mono text-[13px]" title={mcpUrl}>
-                {mcpUrl}
-              </span>
-              <CopyButton value={mcpUrl} label={tr('copy')} />
-            </div>
+            <CodeBox id="mcp-url" value={mcpUrl} label={tr('copy')} />
           </Card>
 
           {error && s.status !== 'connected' && <p className="text-[13px] text-destructive">{error}</p>}
@@ -209,12 +218,7 @@ function App() {
           {localText}
         </span>
         <div className="text-[13px] text-muted-foreground">{tr('localHint')}</div>
-        <div className="flex items-center justify-between gap-2">
-          <code id="local-config" className="min-w-0 truncate font-mono text-[13px]" title={snippet}>
-            {snippet}
-          </code>
-          <CopyButton value={snippet} label={tr('copy')} />
-        </div>
+        <CodeBox id="local-config" value={snippet} label={tr('copy')} />
       </Collapsible>
 
       <SitesSection s={s} lang={prefs.lang} />
