@@ -29,5 +29,3 @@ export function choiceLabel(lang: Lang, spec: PromptSpec, choice: Choice): strin
 
 /** The filled button of a prompt: the answer most people want. */
 export const isPrimary = (choice: Choice): boolean => choice === 'always' || choice === 'approve' || choice === 'done';
-/** Shown as a small link under the buttons, not as a button. */
-export const isLink = (choice: Choice): boolean => choice === 'all';

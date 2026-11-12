@@ -27,7 +27,7 @@ Privacy policy URL: `https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/priva
 > • Run several agents side by side, each in its own tab group
 >
 > You stay in control:
-> • "Allow AI control" is a one-click kill switch, and an on-page bar shows when the agent works, with a Stop button
+> • An on-page bar shows when the agent works, with a Stop button; Disconnect in the popup cuts access entirely
 > • Per-site rules: allow, ask or block any website
 > • Sensitive actions (submit, pay, delete, post, download, password fields) always ask you on the page first
 > • Card numbers, ID numbers and secret-looking files are hard-blocked; a secrets vault keeps passwords out of the model's sight
@@ -85,11 +85,11 @@ Paste each into the matching field of the "Privacy practices" tab.
 | `webNavigation` | Detects page loads, redirects and frame creation so the agent waits for pages to finish loading, can address iframes, and so site rules are re-checked after a redirect. |
 | `cookies` | Used only by the `browser_cookies` tool when the AI asks, and by the site-rule check for the cookie's target host. Results go only to the user's own AI client. Reading or writing is blocked for hosts the user's rules block. |
 | `history` | Used only by the `browser_history` tool (search or list recent visits) when the AI asks, so it can reopen a page the user mentions. Results go only to the user's own AI client. |
-| Host permission `<all_urls>` | The user may ask the AI to work on any website, so the content script and debugger must be able to run on any origin and in every frame (cross-origin iframes included). Access is narrowed by the user: per-site Allow / Ask / Block rules and an on/off master switch. |
+| Host permission `<all_urls>` | The user may ask the AI to work on any website, so the content script and debugger must be able to run on any origin and in every frame (cross-origin iframes included). Access is narrowed by the user: per-site Allow / Ask / Block rules, and Stop / Disconnect at any time. |
 
 ## Remote code
 
-**No, this extension does not use remote code.** All JavaScript is bundled in the package (`background.js`, `content.js`, `popup.js`, `audit.js`). There are no remote `<script>` tags, no `eval` or `new Function` of fetched strings, and no loading of external modules. The `browser_evaluate` tool runs a script the user's own AI client supplies, inside the page the user asked it to work on, and it is gated by the user's site rules and confirmation prompts; the extension never downloads code from its own servers.
+**No, this extension does not use remote code.** All JavaScript is bundled in the package (`background.js`, `content.js`, `popup.js`, `audit.js`). There are no remote `<script>` tags, no `eval` or `new Function` of fetched strings, and no loading of external modules. The `browser_evaluate` tool runs a script the user's own AI client supplies, inside the page the user asked it to work on, and it is limited by the user's site rules (a blocked site never runs it); the extension never downloads code from its own servers.
 
 ## Data usage disclosures (Privacy practices tab)
 

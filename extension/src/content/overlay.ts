@@ -9,7 +9,7 @@
 
 import { getPrefs, isDark, t, type Prefs } from '../i18n';
 import type { Choice, OverlayAction, PromptSpec, RuntimeMessage } from '../messages';
-import { choiceLabel, isLink, isPrimary, promptCopy } from '../prompt-copy';
+import { choiceLabel, isPrimary, promptCopy } from '../prompt-copy';
 
 const CSS = `
 :host{all:initial}
@@ -40,9 +40,6 @@ button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 .prompt button{color:var(--fg)}
 .prompt button:hover{background:color-mix(in srgb,var(--fg) 6%,var(--bg))}
 .prompt button.primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
-.prompt .links{display:flex;justify-content:flex-end;margin-top:8px}
-.prompt button.link{height:auto;padding:2px 0;border:0;border-radius:4px;background:none;color:var(--muted);font-weight:400;text-decoration:underline;text-underline-offset:2px}
-.prompt button.link:hover{background:none;color:var(--fg)}
 .prompt button:focus-visible{outline:2px solid var(--muted);outline-offset:2px}
 `;
 
@@ -240,9 +237,8 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
   card.setAttribute('role', 'alertdialog');
   card.append(el('h4', '', title), el('p', '', detail));
   const row = el('div', 'row');
-  const links = el('div', 'links');
   const choiceButton = (choice: Choice) => {
-    const b = el('button', isLink(choice) ? 'link' : isPrimary(choice) ? 'primary' : '', choiceLabel(lang, spec, choice));
+    const b = el('button', isPrimary(choice) ? 'primary' : '', choiceLabel(lang, spec, choice));
     b.addEventListener('click', (e) => {
       // Only a real click by the user answers; a page or script cannot synthesize one.
       if (!e.isTrusted) return;
@@ -251,11 +247,10 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
       chrome.runtime.sendMessage(msg).catch(() => {});
       endPrompt(spec.id);
     });
-    (isLink(choice) ? links : row).append(b);
+    row.append(b);
   };
   spec.choices.forEach(choiceButton);
   card.append(row);
-  if (links.childElementCount) card.append(links);
   p.prompts.append(card);
 }
 

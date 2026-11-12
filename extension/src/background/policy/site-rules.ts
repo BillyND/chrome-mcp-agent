@@ -34,9 +34,6 @@ export function normalizeRuleHost(input: string): string {
   return host.replace(/^www\./, '');
 }
 
-/** The rule key under which "run scripts on <host>" is allowed for good; it cannot clash with a real host. */
-export const scriptRule = (host: string): string => `script:${host}`;
-
 /** A rule host matches itself and its subdomains; IP addresses only match exactly. */
 export function hostMatches(host: string, rule: string): boolean {
   if (host === rule) return true;

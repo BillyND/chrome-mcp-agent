@@ -1,11 +1,11 @@
 // Popup parts for the safety layer: confirmations waiting for the user (when the page could not show
-// them) and the page-script switch with the site rules.
+// them) and the site rules.
 
 import { useState } from 'react';
 import { t, type Key, type Lang } from '../i18n';
 import type { PopupState, RuntimeMessage, SiteAction } from '../messages';
-import { choiceLabel, isLink, isPrimary, promptCopy } from '../prompt-copy';
-import { Button, Card, Collapsible, Input, Switch } from './ui/components';
+import { choiceLabel, isPrimary, promptCopy } from '../prompt-copy';
+import { Button, Card, Collapsible, Input } from './ui/components';
 import { cn } from './ui/utils';
 
 const send = (msg: RuntimeMessage) => chrome.runtime.sendMessage(msg).catch(() => {});
@@ -23,17 +23,12 @@ export function PendingPrompts({ s, lang }: { s: PopupState; lang: Lang }) {
             <div className="text-[13px] font-semibold">{title}</div>
             <div className="text-xs text-muted-foreground">{detail}</div>
             <div className="flex flex-wrap justify-end gap-2">
-              {p.choices.filter((c) => !isLink(c)).map((c) => (
+              {p.choices.map((c) => (
                 <Button key={c} size="sm" variant={isPrimary(c) ? 'default' : 'outline'} onClick={() => answer(c)}>
                   {choiceLabel(lang, p, c)}
                 </Button>
               ))}
             </div>
-            {p.choices.filter(isLink).map((c) => (
-              <Button key={c} variant="link" size="sm" className="self-end" onClick={() => answer(c)}>
-                {choiceLabel(lang, p, c)}
-              </Button>
-            ))}
           </Card>
         );
       })}
@@ -43,7 +38,7 @@ export function PendingPrompts({ s, lang }: { s: PopupState; lang: Lang }) {
 
 const ACTIONS: SiteAction[] = ['block', 'ask', 'allow'];
 
-/** Page scripts on every site, and the user's per-site rules. */
+/** The user's per-site rules. */
 export function SitesSection({ s, lang }: { s: PopupState; lang: Lang }) {
   const tr = (k: Key) => t(lang, k);
   const [host, setHost] = useState('');
@@ -56,13 +51,6 @@ export function SitesSection({ s, lang }: { s: PopupState; lang: Lang }) {
 
   return (
     <Collapsible id="sites" title={tr('sites')} count={s.sites.rules.length}>
-      <div className="flex items-start justify-between gap-3">
-        <label htmlFor="scripts-everywhere" className="flex flex-col gap-0.5 text-[13px] font-medium">
-          {tr('scripts_everywhere')}
-          <span className="text-xs font-normal text-muted-foreground">{tr('scripts_everywhere_hint')}</span>
-        </label>
-        <Switch id="scripts-everywhere" className="mt-0.5" checked={s.scriptsEverywhere} onCheckedChange={(enabled) => void send({ type: 'set-scripts-everywhere', enabled })} />
-      </div>
       <ul id="site-rules" className="divide-y rounded-md border">
         {s.sites.rules.length === 0 && <li className="px-2 py-1.5 text-center text-[13px] text-muted-foreground">{tr('sites_none')}</li>}
         {s.sites.rules.map((r) => (

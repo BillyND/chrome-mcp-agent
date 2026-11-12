@@ -87,10 +87,9 @@ export interface PageGates {
   captcha: boolean;
 }
 
-export type PromptKind = 'site' | 'script' | 'sensitive' | 'handback';
+export type PromptKind = 'site' | 'sensitive' | 'handback';
 /** Answers to an on-page prompt. */
-/** `all`: allow page scripts on every site (script prompts only). */
-export type Choice = 'once' | 'always' | 'all' | 'approve' | 'done' | 'decline';
+export type Choice = 'once' | 'always' | 'approve' | 'done' | 'decline';
 
 /** An on-page confirmation the user answers with a click. */
 export interface PromptSpec {
@@ -136,7 +135,6 @@ export type RuntimeMessage =
   | { type: 'get-state' }
   | { type: 'approval-decision'; id: string; choice: Choice }
   | { type: 'set-site-rule'; host: string; action: SiteAction | null }
-  | { type: 'set-scripts-everywhere'; enabled: boolean }
   | { type: 'clear-log' }
   | { type: 'open-audit' };
 
@@ -171,8 +169,6 @@ export interface PopupState {
   local: { enabled: boolean; status: ConnectionStatus; port: number };
   /** The user's site rules and the built-in blocks, for the "Sites" section. */
   sites: SitesView;
-  /** Page scripts run without asking on every site that is not blocked. */
-  scriptsEverywhere: boolean;
   /** Confirmations waiting for the user (the popup answers them when the page can't show one). */
   pending: PromptSpec[];
 }

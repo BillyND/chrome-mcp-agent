@@ -8,7 +8,7 @@ import type { ToolContent } from '../../../shared/protocol';
 import { answer, pendingPrompts } from './policy/approvals';
 import { OPEN_TAG } from './policy/untrusted';
 import { normalizeRuleHost } from './policy/site-rules';
-import { getSettings, setRule, setScriptsEverywhere, sitesView } from './policy/store';
+import { setRule, sitesView } from './policy/store';
 import { GATEWAY_URL, clearActivity, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setPaused, setStatus, state } from './state';
 import { agentLabel, DEFAULT_AGENT } from './tools/agent-id';
 import { hideAgentBar, runTool, showAgentBar } from './tools';
@@ -111,7 +111,7 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       handleFrameIdentified(msg);
       return false;
     case 'get-state':
-      void Promise.all([popupState(), sitesView(), getSettings()]).then(([s, sites, settings]) => sendResponse({ ...s, sites, scriptsEverywhere: settings.scriptsEverywhere, pending: pendingPrompts() }));
+      void Promise.all([popupState(), sitesView()]).then(([s, sites]) => sendResponse({ ...s, sites, pending: pendingPrompts() }));
       return true;
     case 'approval-decision':
       // Page prompts and the popup answer through here; the page script runs in an isolated world, so a web page cannot.
@@ -122,9 +122,6 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       if (host) void setRule(host, msg.action).then(notify);
       return false;
     }
-    case 'set-scripts-everywhere':
-      void setScriptsEverywhere(msg.enabled === true).then(notify);
-      return false;
     case 'clear-log':
       void clearActivity();
       return false;

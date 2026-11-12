@@ -15,19 +15,13 @@ const extUrl = (file: string) => `chrome-extension://${new URL(h.sw.url()).host}
 const OPEN = '<untrusted_page_content>';
 const CLOSE = '</untrusted_page_content>';
 
-/** Page scripts are allowed on the fixture hosts by default, so helpers that read the page do not ask; the script-gate tests clear this. */
-const SCRIPTS_ALLOWED: Record<string, string> = { 'script:localhost': 'allow', 'script:127.0.0.1': 'allow' };
 const setRawRules = (rules: Record<string, string>) => h.sw.evaluate((r) => chrome.storage.local.set({ siteRules: r }), rules);
-const setRules = (rules: Record<string, string>) => setRawRules({ ...SCRIPTS_ALLOWED, ...rules });
-const setSettings = (s: Record<string, number> | null) =>
+const setRules = setRawRules;
+const setSettings = (s: Record<string, number | boolean> | null) =>
   h.sw.evaluate((v) => (v ? chrome.storage.local.set({ policySettings: v }) : chrome.storage.local.remove('policySettings')), s);
 const setPrefs = (lang: 'en' | 'vi') => h.sw.evaluate((l) => chrome.storage.local.set({ prefs: { lang: l, theme: 'light' } }), lang);
 const allRules = () => h.sw.evaluate(async () => ((await chrome.storage.local.get('siteRules')).siteRules ?? {}) as Record<string, string>);
-const pick = (rules: Record<string, string>, scripts: boolean) => Object.fromEntries(Object.entries(rules).filter(([k]) => k.startsWith('script:') === scripts));
-const storedRules = async () => pick(await allRules(), false);
-const storedScriptRules = async () => pick(await allRules(), true);
-const scriptsEverywhere = () => h.sw.evaluate(async () => (await chrome.storage.local.get('policySettings')).policySettings?.scriptsEverywhere === true);
-const setScriptsEverywhere = (on: boolean) => h.sw.evaluate((v) => chrome.storage.local.set({ policySettings: { scriptsEverywhere: v } }), on);
+const storedRules = allRules;
 const DECLINE = 'Don’t allow';
 const noPrompt = async () => expect(await readPrompts(h.ctx, h.sw)).toHaveLength(0);
 
@@ -631,146 +625,37 @@ const imageOf = (r: { content: Array<{ type: string; data?: string }> }) => r.co
 test.describe('running page scripts', () => {
   let tab: Page;
   test.beforeEach(async () => {
-    await setRawRules({}); // no standing permission to run scripts
-    await setScriptsEverywhere(false); // the default is on; these tests are about the question
+    await setRawRules({});
     tab = await openPage('/index.html');
   });
   const ran = () => tab.evaluate(() => (window as any).__ran ?? null);
 
-  test('evaluate asks on the page before running anything; Just this once covers the site for a while', async () => {
-    const pending = call('browser_evaluate', { script: 'window.__ran = 1; return document.title' });
-    const prompt = await waitForPrompt(h.ctx, h.sw);
-    expect(prompt.kind).toBe('script');
-    expect(prompt.title).toMatch(/^.+ wants to run a script on localhost$/);
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Allow on this site', 'Just this once', DECLINE, 'Allow on all sites']);
-    expect(prompt.buttons.filter((b) => b.primary).map((b) => b.label)).toEqual(['Allow on this site']);
-    expect(prompt.detail).toBe('Scripts can read and change this page.');
-    expect(await ran()).toBeNull();
-    await answerPrompt(h.ctx, h.sw, 'Just this once');
-    const r = await pending;
+  test('evaluate runs on any site without asking, even with settings or rules saved by older versions', async () => {
+    await setSettings({ approvalTimeoutMs: 120_000, scriptsEverywhere: false });
+    await setRawRules({ 'script:localhost': 'block' });
+    const r = await call('browser_evaluate', { script: 'window.__ran = 1; return document.title' });
     expect(r.isError, r.text).toBeFalsy();
     expect(r.text).toContain('Fixture Home');
     expect(await ran()).toBe(1);
-    const again = await call('browser_evaluate', { script: '1 + 1' });
-    expect(again.isError, again.text).toBeFalsy();
-    await noPrompt();
-    expect(await storedScriptRules()).toEqual({});
-  });
-
-  test('Don’t allow runs nothing, tells the model not to retry, and is not asked again right away', async () => {
-    const pending = call('browser_evaluate', { script: 'window.__ran = 1; return 1' });
-    await answerPrompt(h.ctx, h.sw, DECLINE);
-    const r = await pending;
-    expect(r.isError).toBe(true);
-    expect(r.text).toMatch(/The user declined running scripts on localhost\. Do not retry/);
-    expect(await ran()).toBeNull();
-    const retry = await call('browser_evaluate', { script: 'window.__ran = 1; return 1' });
-    expect(retry.isError).toBe(true);
-    expect(await ran()).toBeNull();
-    await noPrompt();
-  });
-
-  test('Allow on this site is saved like a site rule and stops the questions', async () => {
-    const pending = call('browser_evaluate', { script: 'return 1' });
-    await answerPrompt(h.ctx, h.sw, 'Allow on this site');
-    expect((await pending).isError).toBeFalsy();
-    expect(await storedScriptRules()).toEqual({ 'script:localhost': 'allow' });
-    await h.sw.evaluate(() => chrome.storage.session.remove('siteGrants'));
-    const again = await call('browser_evaluate', { script: 'return 2' });
-    expect(again.isError, again.text).toBeFalsy();
-    await noPrompt();
-  });
-
-  test('the answer is per site and per agent', async () => {
-    let pending = call('browser_evaluate', { script: 'return 1' }, 'agent-a');
-    await answerPrompt(h.ctx, h.sw, 'Just this once');
-    expect((await pending).isError).toBeFalsy();
-    pending = call('browser_evaluate', { script: 'return 1' }, 'agent-b');
-    expect((await waitForPrompt(h.ctx, h.sw)).title).toContain('Agent B');
-    await answerPrompt(h.ctx, h.sw, DECLINE);
-    expect((await pending).isError).toBe(true);
-    // Another site is another question.
-    await call('browser_navigate', { url: `http://127.0.0.1:${Number(new URL(SITE_A).port) + 1}/same.html` }, 'agent-a');
-    pending = call('browser_evaluate', { script: 'return 1' }, 'agent-a');
-    expect((await waitForPrompt(h.ctx, h.sw)).title).toMatch(/script on 127\.0\.0\.1$/);
-    await answerPrompt(h.ctx, h.sw, DECLINE);
-    expect((await pending).isError).toBe(true);
-  });
-
-  test('the prompt names the agent in plain words', async () => {
-    for (const [id, name] of [['claude-code', 'Claude Code'], ['local:cursor', 'Cursor'], ['ChatGPT#abc123', 'ChatGPT']] as const) {
-      await call('browser_navigate', { url: `${SITE_A}/index.html` }, id);
-      const pending = call('browser_evaluate', { script: 'return 1' }, id);
-      const prompt = await waitForPrompt(h.ctx, h.sw);
-      expect(prompt.title).toBe(`${name} wants to run a script on localhost`);
-      await clickPromptButton(prompt, DECLINE);
-      expect((await pending).isError).toBe(true);
-    }
-  });
-
-  test('the Vietnamese prompt uses the same plain wording', async () => {
-    await setPrefs('vi');
-    await call('browser_navigate', { url: `${SITE_A}/index.html` }, 'claude-code');
-    const pending = call('browser_evaluate', { script: 'return 1' }, 'claude-code');
-    const prompt = await waitForPrompt(h.ctx, h.sw);
-    expect(prompt.title).toBe('Claude Code muốn chạy script trên localhost');
-    expect(prompt.detail).toBe('Script có thể đọc và thay đổi trang này.');
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Cho phép trên trang này', 'Chỉ lần này', 'Không cho phép', 'Cho phép trên mọi trang']);
-    await clickPromptButton(prompt, 'Không cho phép');
-    expect((await pending).isError).toBe(true);
-  });
-
-  test('"Allow on all sites" turns the setting on: no rule is saved and no other site asks either', async () => {
-    const pending = call('browser_evaluate', { script: 'return 1' });
-    await answerPrompt(h.ctx, h.sw, 'Allow on all sites');
-    expect((await pending).isError).toBeFalsy();
-    expect(await scriptsEverywhere()).toBe(true);
-    expect(await storedScriptRules()).toEqual({});
-    await call('browser_navigate', { url: `http://127.0.0.1:${Number(new URL(SITE_A).port) + 1}/same.html` });
+    await call('browser_navigate', { url: `http://127.0.0.1:${Number(new URL(SITE_A).port) + 1}/same.html` }, 'agent-b');
     const other = await call('browser_evaluate', { script: 'return 2' }, 'agent-b');
     expect(other.isError, other.text).toBeFalsy();
     await noPrompt();
-  });
-
-  test('the popup switch: ON runs scripts without asking, OFF asks again', async () => {
-    const popup = await h.ctx.newPage();
-    await popup.goto(extUrl('popup.html'));
-    await popup.locator('#sites > button').click();
-    const toggle = popup.locator('#scripts-everywhere');
-    await expect(toggle).toHaveAttribute('aria-checked', 'false');
-    await expect(popup.locator('#sites')).toContainText('Let AI run page scripts on every site');
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-checked', 'true');
-    expect(await scriptsEverywhere()).toBe(true);
-    const r = await call('browser_evaluate', { script: 'window.__ran = 1; return 1' });
-    expect(r.isError, r.text).toBeFalsy();
-    await noPrompt();
-    await toggle.click();
-    await expect(toggle).toHaveAttribute('aria-checked', 'false');
-    const pending = call('browser_evaluate', { script: 'return 2' });
-    await answerPrompt(h.ctx, h.sw, DECLINE);
-    expect((await pending).isError).toBe(true);
-    await popup.close();
-  });
-
-  test('page scripts run without asking by default, including for settings saved before the switch existed', async () => {
     await setSettings(null);
-    expect(await h.sw.evaluate(async () => (await chrome.storage.local.get('policySettings')).policySettings)).toBeUndefined();
-    const r = await call('browser_evaluate', { script: 'return document.title' });
-    expect(r.isError, r.text).toBeFalsy();
-    await setSettings({ approvalTimeoutMs: 120_000 });
-    const again = await call('browser_evaluate', { script: 'return 1' });
-    expect(again.isError, again.text).toBeFalsy();
-    await noPrompt();
+  });
+
+  test('the popup has no script switch and hides old script permissions from the site list', async () => {
+    await setRawRules({ 'script:localhost': 'allow', 'shop.localhost': 'block' });
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
     await popup.locator('#sites > button').click();
-    await expect(popup.locator('#scripts-everywhere')).toHaveAttribute('aria-checked', 'true');
+    await expect(popup.locator('#scripts-everywhere')).toHaveCount(0);
+    await expect(popup.locator('#site-rules li')).toHaveCount(1);
+    await expect(popup.locator('#site-rules')).toContainText('shop.localhost');
     await popup.close();
   });
 
-  test('with the switch on, blocked sites stay blocked and secret placeholders are still refused', async () => {
-    await setScriptsEverywhere(true);
+  test('blocked sites stay blocked and secret placeholders are still refused', async () => {
     await setRules({ 'block.localhost': 'block' });
     const nav = await open('/index.html', 'block.localhost');
     expect(nav.isError).toBe(true);
@@ -782,23 +667,6 @@ test.describe('running page scripts', () => {
       await h.sw.evaluate(() => chrome.storage.local.remove('secrets'));
     }
     await noPrompt();
-  });
-
-  test('the prompt works from the keyboard: Tab into the card, Enter on its first button', async () => {
-    const pending = call('browser_evaluate', { script: 'return 1' });
-    const { page } = await waitForPrompt(h.ctx, h.sw);
-    await page.bringToFront();
-    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
-    let inCard = false;
-    for (let i = 0; i < 40 && !inCard; i++) {
-      await page.keyboard.press('Tab');
-      inCard = await page.evaluate(() => document.activeElement?.tagName === 'HELMSMAN-OVERLAY');
-    }
-    expect(inCard).toBe(true);
-    await page.keyboard.press('Tab'); // past the agent bar's Stop button, onto the card's first button
-    await page.keyboard.press('Enter');
-    expect((await pending).isError).toBeFalsy();
-    expect(await storedScriptRules()).toEqual({ 'script:localhost': 'allow' });
   });
 
   test('reading tools never ask', async () => {

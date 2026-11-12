@@ -63,7 +63,7 @@ Mở một cuộc chat mới, bật connector **Helmsman**, rồi gửi lần l�
 |---|---|
 | ChatGPT báo "Chrome is not connected" | 1) Mở popup Helmsman: phải có chấm xanh **Connected**, nếu không thì bấm **Connect**. 2) So mã ChatGPT nhắc tới ("code ending in …") với mã trong popup. Khác nhau nghĩa là ChatGPT đang gắn với mã cũ (do cài lại hoặc ngắt kết nối extension): vào ChatGPT, xoá connector Helmsman rồi tạo lại và dán mã mới. |
 | AI không làm gì | Kiểm tra công tắc **Allow AI control** trong popup đang bật. |
-| Muốn dừng AI ngay | Bấm **Stop** trên thanh nhỏ ở cuối trang, hoặc tắt công tắc trong popup. |
+| Muốn dừng AI ngay | Bấm **Dừng** trên thanh nhỏ ở cuối trang. Nhắn tiếp là AI làm tiếp, không cần bật lại. |
 | Một trang bị chặn | Popup → **Sites**: xoá dòng chặn của trang đó. |
 | Dải vàng "đang gỡ lỗi trình duyệt" | Bình thường khi AI đang điều khiển. Tự ẩn sau 3 phút. |
 | Muốn xem AI đã làm gì | Popup → **Audit log**. |

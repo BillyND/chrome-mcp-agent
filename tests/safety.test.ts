@@ -6,7 +6,7 @@ import type { ElementFacts } from '../extension/src/messages';
 import { fold } from '../extension/src/background/policy/fold';
 import { checkAccountCreation, checkTyping, checkUpload, looksLikeCardNumber, luhnValid, MAX_UPLOAD_BYTES } from '../extension/src/background/policy/hard-blocks';
 import { classifyClick, classifyDrop, classifySubmit, classifyTyping } from '../extension/src/background/policy/sensitive';
-import { decideSite, hostMatches, hostOf, normalizeRuleHost, scriptRule, targetUrlsOf } from '../extension/src/background/policy/site-rules';
+import { decideSite, hostMatches, hostOf, normalizeRuleHost, targetUrlsOf } from '../extension/src/background/policy/site-rules';
 import { CLOSE_TAG, looksLikeCaptcha, OPEN_TAG, wrapUntrusted } from '../extension/src/background/policy/untrusted';
 
 const facts = (over: Partial<ElementFacts> = {}): ElementFacts => ({
@@ -312,10 +312,8 @@ describe('dropping onto sensitive fields and script permissions', () => {
     expect(classifyDrop(facts({ tag: 'div', role: null, name: 'Vùng thả' })).level).toBe('allow');
   });
 
-  it('keeps script permissions apart from site rules and from real hosts', () => {
-    expect(scriptRule('shop.example.com')).toBe('script:shop.example.com');
-    expect(hostOf(scriptRule('shop.example.com'))).toBe('');
-    expect(decideSite('https://shop.example.com/', { [scriptRule('shop.example.com')]: 'allow', 'shop.example.com': 'block' }).action).toBe('block');
-    expect(decideSite('https://shop.example.com/', { [scriptRule('shop.example.com')]: 'block' }).action).toBe('allow');
+  it('ignores the old per-site script permissions left in stored rules', () => {
+    expect(decideSite('https://shop.example.com/', { 'script:shop.example.com': 'allow', 'shop.example.com': 'block' }).action).toBe('block');
+    expect(decideSite('https://shop.example.com/', { 'script:shop.example.com': 'block' }).action).toBe('allow');
   });
 });

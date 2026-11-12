@@ -13,8 +13,8 @@ import { ask } from './approvals';
 import { checkAccountCreation, checkTyping, checkUpload } from './hard-blocks';
 import { factsAtPoint } from './point-facts';
 import { classifyClick, classifyDrop, classifySubmit, classifyTyping, type Verdict } from './sensitive';
-import { decideSite, hostOf, scriptRule } from './site-rules';
-import { getGrant, getRules, getSettings, setGrant, setRule, setScriptsEverywhere } from './store';
+import { decideSite, hostOf } from './site-rules';
+import { getGrant, getRules, getSettings, setGrant, setRule } from './store';
 import { HANDBACK_HINT, wrapUntrusted } from './untrusted';
 
 function REFUSED(ctx: ToolCtx, message: string): never {
@@ -44,10 +44,10 @@ function declined(ctx: ToolCtx, choice: Choice | 'timeout', what: string, timeou
 const asking = new Map<string, Promise<void>>();
 
 /**
- * Asks "allow this agent ...?" once per grant. `rule` is the key the answer is stored under (a host, or "script:host"):
- * Once is a timed grant, Always becomes an allow rule, All (scripts only) turns on "scripts on every site", Decline is remembered briefly so the agent cannot nag.
+ * Asks "allow this agent ...?" once per grant. `rule` is the key the answer is stored under (the host):
+ * Once is a timed grant, Always becomes an allow rule, Decline is remembered briefly so the agent cannot nag.
  */
-async function grantGate(ctx: ToolCtx, kind: 'site' | 'script', host: string, rule: string, what: string): Promise<void> {
+async function grantGate(ctx: ToolCtx, kind: 'site', host: string, rule: string, what: string): Promise<void> {
   const grant = await getGrant(ctx.agent, rule);
   if (grant === true) return;
   if (grant === false) declined(ctx, 'decline', what, 0);
@@ -63,14 +63,13 @@ async function grantGate(ctx: ToolCtx, kind: 'site' | 'script', host: string, ru
     const choice = await ask({ tabId: await questionTab(ctx), kind, agent: ctx.agent, host }, ctx.signal, settings.approvalTimeoutMs);
     if (choice === 'once') await setGrant(ctx.agent, rule, true, settings.grantMs);
     else if (choice === 'always') await setRule(rule, 'allow');
-    else if (choice === 'all') await setScriptsEverywhere(true);
     else await setGrant(ctx.agent, rule, false, settings.denyMs);
     return choice;
   })();
   asking.set(key, question.then(() => {}, () => {}));
   try {
     const choice = await question;
-    if (choice === 'once' || choice === 'always' || choice === 'all') {
+    if (choice === 'once' || choice === 'always') {
       ctx.audit.approval = 'approved';
       return;
     }
@@ -90,15 +89,6 @@ export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
     REFUSED(ctx, `${decision.host} is blocked by a rule the user set in Helmsman. Do not reach it another way (another tool or URL); tell the user, who can unblock it in the Helmsman popup under Sites.`);
   }
   await grantGate(ctx, 'site', decision.host, decision.host, `access to ${decision.host}`);
-}
-
-/** Before running the agent's own JavaScript in a tab: the user allows it per site (once, or always as the rule "script:<host>"). */
-export async function guardScript(ctx: ToolCtx, tabId: number): Promise<void> {
-  if ((await getSettings()).scriptsEverywhere) return;
-  const host = (await hostOfTab(tabId)) || 'this page';
-  const rule = scriptRule(host);
-  if ((await getRules())[rule] === 'allow') return;
-  await grantGate(ctx, 'script', host, rule, `running scripts on ${host}`);
 }
 
 // ---- elements ----------------------------------------------------------------------------

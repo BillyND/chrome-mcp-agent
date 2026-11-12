@@ -71,12 +71,12 @@ How it works:
 Everything is enforced in the extension, so it applies to every MCP client.
 
 - **Site rules:** allow, ask or block per site. No site is blocked by default; block any site yourself.
-- **On-page confirmation** before sending, deleting, paying, downloading or entering passwords. Page scripts run without asking unless you turn that off under Sites. Only a real click can approve; the agent cannot press the button itself.
+- **On-page confirmation** before sending, deleting, paying, downloading or entering passwords. Page scripts (`browser_evaluate`) run on every site you haven't blocked, without asking. Only a real click can approve; the agent cannot press the button itself.
 - **Hard blocks:** card numbers, ID numbers, account creation and credential files.
 - **Prompt-injection hardening:** page content is wrapped as untrusted and hidden text is stripped.
 - **Secrets stay hidden:** values are redacted from every result, and screenshots and PDFs are masked.
 - **Audit log** of every call, kept locally and exportable.
-- **Stop:** flip the popup switch or press Stop on the page to pause all agents instantly.
+- **Stop:** press Stop on the page to end the current task; the next request works normally.
 
 ## Architecture
 
