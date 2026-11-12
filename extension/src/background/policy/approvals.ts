@@ -18,8 +18,8 @@ interface Pending {
 const pending = new Map<string, Pending>();
 
 const CHOICES: Record<PromptKind, Choice[]> = {
-  site: ['once', 'always', 'decline'],
-  script: ['once', 'always', 'decline'],
+  site: ['always', 'once', 'decline'],
+  script: ['always', 'once', 'decline', 'all'],
   sensitive: ['approve', 'decline'],
   handback: ['done', 'decline'],
 };

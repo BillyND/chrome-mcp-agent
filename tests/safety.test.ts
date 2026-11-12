@@ -3,7 +3,6 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ElementFacts } from '../extension/src/messages';
-import { DEFAULT_BLOCKS } from '../extension/src/background/policy/default-blocks';
 import { fold } from '../extension/src/background/policy/fold';
 import { checkAccountCreation, checkTyping, checkUpload, looksLikeCardNumber, luhnValid, MAX_UPLOAD_BYTES } from '../extension/src/background/policy/hard-blocks';
 import { classifyClick, classifyDrop, classifySubmit, classifyTyping } from '../extension/src/background/policy/sensitive';
@@ -65,37 +64,21 @@ describe('site rules', () => {
     expect(decideSite('https://x.shop.example.com/', rules).action).toBe('ask');
   });
 
-  it('blocks the built-in categories by default, with the category named', () => {
-    expect(decideSite('https://www.paypal.com/signin', {})).toMatchObject({ action: 'block', source: 'default', category: 'banking' });
-    expect(decideSite('https://accounts.binance.com/', {})).toMatchObject({ action: 'block', category: 'crypto' });
-    expect(decideSite('https://www.pornhub.com/', {})).toMatchObject({ action: 'block', category: 'adult' });
-    expect(decideSite('https://online.vietcombank.com.vn/', {})).toMatchObject({ action: 'block', category: 'banking' });
-    expect(decideSite('https://chromewebstore.google.com/detail/x', {})).toMatchObject({ action: 'block', category: 'store' });
+  it('blocks nothing by default, not even banks or crypto exchanges', () => {
+    for (const url of ['https://www.paypal.com/signin', 'https://accounts.binance.com/', 'https://chromewebstore.google.com/detail/x', 'https://chrome.google.com/webstore/category/extensions']) {
+      expect(decideSite(url, {})).toMatchObject({ action: 'allow', source: 'none' });
+    }
   });
 
-  it('blocks only the web store path on chrome.google.com', () => {
-    expect(decideSite('https://chrome.google.com/webstore/category/extensions', {}).action).toBe('block');
-    expect(decideSite('https://chrome.google.com/other', {}).action).toBe('allow');
-    expect(decideSite('https://google.com/', {}).action).toBe('allow');
-  });
-
-  it('lets the user unblock a default and re-block it again', () => {
-    expect(decideSite('https://www.paypal.com/', { 'paypal.com': 'allow' })).toMatchObject({ action: 'allow', source: 'user' });
+  it('lets the user block any site and unblock it again', () => {
+    expect(decideSite('https://www.paypal.com/', { 'paypal.com': 'block' })).toMatchObject({ action: 'block', source: 'user' });
     expect(decideSite('https://www.paypal.com/', { 'paypal.com': 'ask' }).action).toBe('ask');
-    expect(decideSite('https://www.paypal.com/', {}).action).toBe('block');
+    expect(decideSite('https://www.paypal.com/', {}).action).toBe('allow');
   });
 
   it('does not block lookalike hosts', () => {
-    expect(decideSite('https://paypal.com.example.org/', {}).action).toBe('allow');
-    expect(decideSite('https://notpaypal.com/', {}).action).toBe('allow');
-  });
-
-  it('keeps the default list well formed', () => {
-    for (const b of DEFAULT_BLOCKS) {
-      expect(b.host).toBe(b.host.toLowerCase());
-      expect(b.host).not.toMatch(/^https?:|\//);
-    }
-    expect(new Set(DEFAULT_BLOCKS.map((b) => b.category))).toEqual(new Set(['banking', 'crypto', 'adult', 'store']));
+    expect(decideSite('https://paypal.com.example.org/', { 'paypal.com': 'block' }).action).toBe('allow');
+    expect(decideSite('https://notpaypal.com/', { 'paypal.com': 'block' }).action).toBe('allow');
   });
 
   it('finds the URLs a tool will open', () => {

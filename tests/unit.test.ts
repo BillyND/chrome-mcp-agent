@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { macCommands, parseShortcut } from '../extension/src/background/keys';
+import { agentName } from '../extension/src/prompt-copy';
 import { agentLabel, GROUP_COLORS, pickColor } from '../extension/src/background/tools/agent-id';
 import { Scheduler } from '../extension/src/background/tools/scheduler';
 import { signDeviceToken, verifyDeviceToken } from '../worker/src/device-token';
@@ -254,5 +255,18 @@ describe('tool catalog for agents', () => {
     for (const name of ['browser_snapshot', 'browser_click', 'browser_find', 'browser_extract', 'browser_pdf', 'browser_emulate', 'browser_wait_for']) {
       expect((TOOL_BY_NAME.get(name)!.inputSchema as { properties: Record<string, unknown> }).properties.tabId, name).toBeDefined();
     }
+  });
+});
+
+describe('agentName', () => {
+  it('makes agent ids readable', () => {
+    expect(agentName('claude-code')).toBe('Claude Code');
+    expect(agentName('local:cursor')).toBe('Cursor');
+    expect(agentName('local:claude-code')).toBe('Claude Code');
+    expect(agentName('ChatGPT#9f8e7d6c')).toBe('ChatGPT');
+    expect(agentName('my_agent.v2#1')).toBe('My Agent V2');
+    expect(agentName('default')).toBe('AI');
+    expect(agentName('  ')).toBe('AI');
+    expect(agentName('a'.repeat(60))).toHaveLength(30);
   });
 });

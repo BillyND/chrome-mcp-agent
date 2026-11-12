@@ -94,13 +94,6 @@ function localSnippet(port: number, gateway: string): string {
   return JSON.stringify({ mcpServers: { helmsman: server } });
 }
 
-function timeAgo(ts: number, lang: string): string {
-  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
-  if (s < 60) return `${s}s`;
-  if (s < 3600) return `${Math.round(s / 60)}m`;
-  return new Date(ts).toLocaleTimeString(lang, { hour: '2-digit', minute: '2-digit' });
-}
-
 function App() {
   const [prefs, setPrefsState] = useState<Prefs | null>(null);
   const [s, setState] = useState<PopupState | null>(null);
@@ -267,27 +260,8 @@ function App() {
         </Card>
       )}
 
-      <SecretsSection lang={prefs.lang} />
-
-      {active && (
-        <>
-        <div className="mt-0.5 text-[13px] font-medium text-muted-foreground">{tr('activity')}</div>
-        <ul id="log" className="divide-y rounded-lg border">
-          {s.log.length === 0 && <li className="px-2.5 py-2 text-center text-[13px] text-muted-foreground">{tr('noActivity')}</li>}
-          {s.log.slice(0, 5).map((e) => (
-            <li key={`${e.t}-${e.tool}`} className="flex items-center gap-2 px-2.5 py-1.5 text-[13px]">
-              <i className={cn('size-1.5 shrink-0 rounded-full', e.ok ? 'bg-success' : 'bg-destructive')} />
-              <span className="min-w-0 flex-1 truncate" title={e.summary}>
-                {e.summary}
-              </span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{timeAgo(e.t, prefs.lang)}</span>
-            </li>
-          ))}
-        </ul>
-        </>
-      )}
-
       <SitesSection s={s} lang={prefs.lang} />
+      <SecretsSection lang={prefs.lang} />
 
       <footer className="flex items-center gap-2 pt-0.5">
         <ToggleGroup type="single" value={prefs.lang} onValueChange={(v) => v && void update({ lang: v as Prefs['lang'] })} aria-label="Language">
@@ -299,12 +273,14 @@ function App() {
           <ToggleGroupItem value="dark" aria-label="Dark">{Icon.moon}</ToggleGroupItem>
           <ToggleGroupItem value="system" aria-label="System">{Icon.monitor}</ToggleGroupItem>
         </ToggleGroup>
+        <Button id="open-audit" variant="link" size="sm" className="ml-auto" onClick={() => void send({ type: 'open-audit' })}>
+          {tr('audit')}
+        </Button>
         {signedIn && (
           <Button
             id="logout"
             variant="link"
             size="sm"
-            className="ml-auto"
             disabled={pending === 'logout'}
             aria-busy={pending === 'logout'}
             onClick={() => {

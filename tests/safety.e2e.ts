@@ -5,7 +5,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import { call, refOf, SITE_A, startHarness, stopHarness, type Harness } from './support/harness';
-import { answerPrompt, readPrompts, waitForPrompt } from './support/prompts';
+import { answerPrompt, clickPromptButton, readPrompts, waitForPrompt } from './support/prompts';
 
 test.describe.configure({ mode: 'serial' });
 
@@ -26,6 +26,9 @@ const allRules = () => h.sw.evaluate(async () => ((await chrome.storage.local.ge
 const pick = (rules: Record<string, string>, scripts: boolean) => Object.fromEntries(Object.entries(rules).filter(([k]) => k.startsWith('script:') === scripts));
 const storedRules = async () => pick(await allRules(), false);
 const storedScriptRules = async () => pick(await allRules(), true);
+const scriptsEverywhere = () => h.sw.evaluate(async () => (await chrome.storage.local.get('policySettings')).policySettings?.scriptsEverywhere === true);
+const setScriptsEverywhere = (on: boolean) => h.sw.evaluate((v) => chrome.storage.local.set({ policySettings: { scriptsEverywhere: v } }), on);
+const DECLINE = 'Don’t allow';
 const noPrompt = async () => expect(await readPrompts(h.ctx, h.sw)).toHaveLength(0);
 
 const open = (path: string, host = 'localhost') => call('browser_navigate', { url: `http://${host}:${new URL(SITE_A).port}${path}` });
@@ -73,19 +76,6 @@ test.describe('site rules', () => {
     await noPrompt();
   });
 
-  test('banking, crypto, adult and web store sites are blocked by default', async () => {
-    for (const [url, category] of [
-      ['https://www.paypal.com/signin', 'banking'],
-      ['https://www.binance.com/', 'crypto'],
-      ['https://www.pornhub.com/', 'adult'],
-      ['https://chromewebstore.google.com/', 'store'],
-    ]) {
-      const r = await call('browser_navigate', { url });
-      expect(r.isError, url).toBe(true);
-      expect(r.text).toContain(`blocked by default (${category})`);
-    }
-  });
-
   test('a tab that is already on a blocked site refuses every tool; navigating away still works', async () => {
     await setRules({ localhost: 'block' });
     for (const tool of ['browser_snapshot', 'browser_get_text', 'browser_screenshot']) {
@@ -110,16 +100,16 @@ test.describe('site rules', () => {
     await call('browser_navigate', { url: `${SITE_A}/index.html` });
   });
 
-  test('an "ask" site prompts on the page: Allow once lets the agent work for a while', async () => {
+  test('an "ask" site prompts on the page: Just this once lets the agent work for a while', async () => {
     await setRules({ 'ask.localhost': 'ask' });
     const pending = open('/index.html', 'ask.localhost');
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.kind).toBe('site');
-    expect(prompt.title).toMatch(/^Allow .+ on ask\.localhost\?$/);
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Allow once', 'Always allow', 'Decline']);
+    expect(prompt.title).toMatch(/^.+ wants to use ask\.localhost$/);
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Allow on this site', 'Just this once', DECLINE]);
     await sleep(1200);
     expect(await Promise.race([pending, sleep(10).then(() => 'waiting')])).toBe('waiting');
-    await answerPrompt(h.ctx, h.sw, 'Allow once');
+    await answerPrompt(h.ctx, h.sw, 'Just this once');
     const r = await pending;
     expect(r.isError, r.text).toBeFalsy();
     expect(r.text).toContain('Navigated');
@@ -130,10 +120,10 @@ test.describe('site rules', () => {
     expect(await storedRules()).toEqual({ 'ask.localhost': 'ask' });
   });
 
-  test('Always allow turns the rule into allow and remembers it', async () => {
+  test('Allow on this site turns the rule into allow and remembers it', async () => {
     await setRules({ 'always.localhost': 'ask' });
     const pending = open('/index.html', 'always.localhost');
-    await answerPrompt(h.ctx, h.sw, 'Always allow');
+    await answerPrompt(h.ctx, h.sw, 'Allow on this site');
     const r = await pending;
     expect(r.isError, r.text).toBeFalsy();
     expect(await storedRules()).toEqual({ 'always.localhost': 'allow' });
@@ -143,10 +133,10 @@ test.describe('site rules', () => {
     await noPrompt();
   });
 
-  test('Decline refuses the call, leaves the tab alone and is not asked again right away', async () => {
+  test('Don’t allow refuses the call, leaves the tab alone and is not asked again right away', async () => {
     await setRules({ 'deny.localhost': 'ask' });
     const pending = open('/index.html', 'deny.localhost');
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     const r = await pending;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/The user declined access to deny\.localhost/);
@@ -170,12 +160,12 @@ test.describe('site rules', () => {
     await setRules({ 'multi.localhost': 'ask' });
     const url = `http://multi.localhost:${new URL(SITE_A).port}/index.html`;
     const a = call('browser_navigate', { url }, 'agent-a');
-    await answerPrompt(h.ctx, h.sw, 'Allow once');
+    await answerPrompt(h.ctx, h.sw, 'Just this once');
     expect((await a).isError).toBeFalsy();
     const b = call('browser_navigate', { url }, 'agent-b');
     const prompt = await waitForPrompt(h.ctx, h.sw);
-    expect(prompt.title).toContain('agent-b');
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    expect(prompt.title).toContain('Agent B');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await b).isError).toBe(true);
   });
 });
@@ -188,7 +178,7 @@ test.describe('sensitive actions', () => {
     expect(prompt.kind).toBe('sensitive');
     expect(prompt.title).toMatch(/wants to: delete or remove$/);
     expect(prompt.detail).toBe('“Xoá tài khoản” on localhost');
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Approve', 'Decline']);
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Approve', DECLINE]);
     // Nothing happened yet, and further calls on that tab queue behind the question (checked with the page itself).
     expect(await prompt.page.locator('#result').textContent()).toBe('');
     await answerPrompt(h.ctx, h.sw, 'Approve');
@@ -201,7 +191,7 @@ test.describe('sensitive actions', () => {
   test('declining blocks the click and tells the model not to retry', async () => {
     const snap = await open('/danger.html');
     const pending = call('browser_click', { ref: refOf(snap.text, 'Remove item', 'button') });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     const r = await pending;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/The user declined this action \(delete: "Remove item"\)\. Do not retry/);
@@ -235,7 +225,7 @@ test.describe('sensitive actions', () => {
     const shot = await call('browser_screenshot', { ref });
     expect(shot.isError).toBeFalsy();
     const pending = call('browser_mouse_xy', { ref, x: 10, y: 10 });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await pageText()).not.toContain('Đã xoá');
   });
@@ -245,7 +235,7 @@ test.describe('sensitive actions', () => {
     const pending = call('browser_click', { ref: refOf(snap.text, 'Tải báo cáo', 'link') });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/download a file$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
   });
 
@@ -253,7 +243,7 @@ test.describe('sensitive actions', () => {
     const pending = call('browser_download', { url: `${SITE_A}/report.csv` });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/download a file$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     const r = await pending;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/declined this download/);
@@ -264,7 +254,7 @@ test.describe('sensitive actions', () => {
     const pending = call('browser_type', { ref: refOf(snap.text, 'Ghi chú', 'textbox'), text: 'giao giờ hành chính', submit: true });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/buy or pay$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await pageText()).not.toContain('Đơn hàng đã đặt');
   });
@@ -275,7 +265,7 @@ test.describe('sensitive actions', () => {
     let pending = call('browser_type', { ref, text: 'hunter2' });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/type into a password field$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await valueOf('pass')).toBe('');
     pending = call('browser_type', { ref, text: 'hunter2' });
@@ -290,8 +280,8 @@ test.describe('sensitive actions', () => {
     const pending = call('browser_click', { ref: refOf(snap.text, 'Xoá tài khoản', 'button') });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/muốn: xoá hoặc gỡ$/);
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Đồng ý', 'Từ chối']);
-    await answerPrompt(h.ctx, h.sw, 'Từ chối');
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Đồng ý', 'Không cho phép']);
+    await answerPrompt(h.ctx, h.sw, 'Không cho phép');
     expect((await pending).isError).toBe(true);
   });
 
@@ -497,7 +487,7 @@ test.describe('hand-back for login and CAPTCHA', () => {
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.kind).toBe('handback');
     expect(prompt.title).toBe('Agent needs you: Log in, then press Done');
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Done', 'Decline']);
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Done', 'Cancel']);
     const active = await h.sw.evaluate(async () => (await chrome.tabs.query({ active: true, lastFocusedWindow: true })).map((t) => t.url));
     expect(active.join()).toContain('/login.html');
     // Still waiting a while later...
@@ -517,7 +507,7 @@ test.describe('hand-back for login and CAPTCHA', () => {
   test('declining or not answering ends the request with a clear message', async () => {
     await open('/login.html');
     let pending = call('browser_request_user', { reason: 'Please log in' });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, 'Cancel');
     let r = await pending;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/declined to help/);
@@ -543,7 +533,7 @@ test.describe('audit log and popup', () => {
     await open('/index.html', 'block.localhost');
     const snap = await open('/danger.html');
     const pending = call('browser_click', { ref: refOf(snap.text, 'Xoá tài khoản', 'button') });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     await pending;
     const pending2 = call('browser_click', { ref: refOf(snap.text, 'Remove item', 'button') });
     await answerPrompt(h.ctx, h.sw, 'Approve');
@@ -579,7 +569,6 @@ test.describe('audit log and popup', () => {
     // The popup still shows the latest few entries from the same log.
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
-    await expect(popup.locator('#log li').first()).toBeVisible();
     await popup.close();
 
     // Clear.
@@ -591,11 +580,11 @@ test.describe('audit log and popup', () => {
     await audit.close();
   });
 
-  test('the popup lists rules and built-in blocks: add, unblock and remove', async () => {
+  test('the popup lists rules: add and remove', async () => {
     await setRawRules({}); // this test is about site rules only
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
-    await popup.locator('#sites summary').first().click();
+    await popup.locator('#sites > button').click();
     await expect(popup.locator('#site-rules')).toContainText('No rules yet');
     await popup.getByPlaceholder('example.com').fill('https://www.Shop.example.org/cart');
     await popup.locator('#sites select').selectOption('ask');
@@ -603,17 +592,8 @@ test.describe('audit log and popup', () => {
     await expect(popup.locator('#site-rules li[data-host="shop.example.org"]')).toContainText('Ask');
     expect(await storedRules()).toEqual({ 'shop.example.org': 'ask' });
 
-    // Unblock a built-in block, then remove that rule to block it again.
-    await popup.locator('#sites details summary', { hasText: 'Blocked by default' }).click();
-    await popup.locator('#sites li', { hasText: 'paypal.com' }).getByRole('button', { name: 'Unblock' }).click();
-    await expect(popup.locator('#site-rules li[data-host="paypal.com"]')).toContainText('Allow');
-    expect((await storedRules())['paypal.com']).toBe('allow');
-    await popup.locator('#site-rules li[data-host="paypal.com"]').getByRole('button', { name: 'Remove' }).click();
-    await expect(popup.locator('#site-rules li[data-host="paypal.com"]')).toHaveCount(0);
     await popup.locator('#site-rules li[data-host="shop.example.org"]').getByRole('button', { name: 'Remove' }).click();
     expect(await storedRules()).toEqual({});
-    const r = await call('browser_navigate', { url: 'https://www.paypal.com/' });
-    expect(r.isError).toBe(true);
     await popup.close();
   });
 
@@ -652,18 +632,21 @@ test.describe('running page scripts', () => {
   let tab: Page;
   test.beforeEach(async () => {
     await setRawRules({}); // no standing permission to run scripts
+    await setScriptsEverywhere(false); // the default is on; these tests are about the question
     tab = await openPage('/index.html');
   });
   const ran = () => tab.evaluate(() => (window as any).__ran ?? null);
 
-  test('evaluate asks on the page before running anything; Allow once covers the site for a while', async () => {
+  test('evaluate asks on the page before running anything; Just this once covers the site for a while', async () => {
     const pending = call('browser_evaluate', { script: 'window.__ran = 1; return document.title' });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.kind).toBe('script');
-    expect(prompt.title).toMatch(/^Allow .+ to run scripts on localhost\?$/);
-    expect(prompt.buttons.map((b) => b.label)).toEqual(['Allow once', 'Always allow', 'Decline']);
+    expect(prompt.title).toMatch(/^.+ wants to run a script on localhost$/);
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Allow on this site', 'Just this once', DECLINE, 'Allow on all sites']);
+    expect(prompt.buttons.filter((b) => b.primary).map((b) => b.label)).toEqual(['Allow on this site']);
+    expect(prompt.detail).toBe('Scripts can read and change this page.');
     expect(await ran()).toBeNull();
-    await answerPrompt(h.ctx, h.sw, 'Allow once');
+    await answerPrompt(h.ctx, h.sw, 'Just this once');
     const r = await pending;
     expect(r.isError, r.text).toBeFalsy();
     expect(r.text).toContain('Fixture Home');
@@ -674,9 +657,9 @@ test.describe('running page scripts', () => {
     expect(await storedScriptRules()).toEqual({});
   });
 
-  test('Decline runs nothing, tells the model not to retry, and is not asked again right away', async () => {
+  test('Don’t allow runs nothing, tells the model not to retry, and is not asked again right away', async () => {
     const pending = call('browser_evaluate', { script: 'window.__ran = 1; return 1' });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     const r = await pending;
     expect(r.isError).toBe(true);
     expect(r.text).toMatch(/The user declined running scripts on localhost\. Do not retry/);
@@ -687,9 +670,9 @@ test.describe('running page scripts', () => {
     await noPrompt();
   });
 
-  test('Always allow is saved like a site rule and stops the questions', async () => {
+  test('Allow on this site is saved like a site rule and stops the questions', async () => {
     const pending = call('browser_evaluate', { script: 'return 1' });
-    await answerPrompt(h.ctx, h.sw, 'Always allow');
+    await answerPrompt(h.ctx, h.sw, 'Allow on this site');
     expect((await pending).isError).toBeFalsy();
     expect(await storedScriptRules()).toEqual({ 'script:localhost': 'allow' });
     await h.sw.evaluate(() => chrome.storage.session.remove('siteGrants'));
@@ -700,18 +683,122 @@ test.describe('running page scripts', () => {
 
   test('the answer is per site and per agent', async () => {
     let pending = call('browser_evaluate', { script: 'return 1' }, 'agent-a');
-    await answerPrompt(h.ctx, h.sw, 'Allow once');
+    await answerPrompt(h.ctx, h.sw, 'Just this once');
     expect((await pending).isError).toBeFalsy();
     pending = call('browser_evaluate', { script: 'return 1' }, 'agent-b');
-    expect((await waitForPrompt(h.ctx, h.sw)).title).toContain('agent-b');
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    expect((await waitForPrompt(h.ctx, h.sw)).title).toContain('Agent B');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     // Another site is another question.
     await call('browser_navigate', { url: `http://127.0.0.1:${Number(new URL(SITE_A).port) + 1}/same.html` }, 'agent-a');
     pending = call('browser_evaluate', { script: 'return 1' }, 'agent-a');
-    expect((await waitForPrompt(h.ctx, h.sw)).title).toMatch(/scripts on 127\.0\.0\.1\?$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    expect((await waitForPrompt(h.ctx, h.sw)).title).toMatch(/script on 127\.0\.0\.1$/);
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
+  });
+
+  test('the prompt names the agent in plain words', async () => {
+    for (const [id, name] of [['claude-code', 'Claude Code'], ['local:cursor', 'Cursor'], ['ChatGPT#abc123', 'ChatGPT']] as const) {
+      await call('browser_navigate', { url: `${SITE_A}/index.html` }, id);
+      const pending = call('browser_evaluate', { script: 'return 1' }, id);
+      const prompt = await waitForPrompt(h.ctx, h.sw);
+      expect(prompt.title).toBe(`${name} wants to run a script on localhost`);
+      await clickPromptButton(prompt, DECLINE);
+      expect((await pending).isError).toBe(true);
+    }
+  });
+
+  test('the Vietnamese prompt uses the same plain wording', async () => {
+    await setPrefs('vi');
+    await call('browser_navigate', { url: `${SITE_A}/index.html` }, 'claude-code');
+    const pending = call('browser_evaluate', { script: 'return 1' }, 'claude-code');
+    const prompt = await waitForPrompt(h.ctx, h.sw);
+    expect(prompt.title).toBe('Claude Code muốn chạy script trên localhost');
+    expect(prompt.detail).toBe('Script có thể đọc và thay đổi trang này.');
+    expect(prompt.buttons.map((b) => b.label)).toEqual(['Cho phép trên trang này', 'Chỉ lần này', 'Không cho phép', 'Cho phép trên mọi trang']);
+    await clickPromptButton(prompt, 'Không cho phép');
+    expect((await pending).isError).toBe(true);
+  });
+
+  test('"Allow on all sites" turns the setting on: no rule is saved and no other site asks either', async () => {
+    const pending = call('browser_evaluate', { script: 'return 1' });
+    await answerPrompt(h.ctx, h.sw, 'Allow on all sites');
+    expect((await pending).isError).toBeFalsy();
+    expect(await scriptsEverywhere()).toBe(true);
+    expect(await storedScriptRules()).toEqual({});
+    await call('browser_navigate', { url: `http://127.0.0.1:${Number(new URL(SITE_A).port) + 1}/same.html` });
+    const other = await call('browser_evaluate', { script: 'return 2' }, 'agent-b');
+    expect(other.isError, other.text).toBeFalsy();
+    await noPrompt();
+  });
+
+  test('the popup switch: ON runs scripts without asking, OFF asks again', async () => {
+    const popup = await h.ctx.newPage();
+    await popup.goto(extUrl('popup.html'));
+    await popup.locator('#sites > button').click();
+    const toggle = popup.locator('#scripts-everywhere');
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    await expect(popup.locator('#sites')).toContainText('Let AI run page scripts on every site');
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'true');
+    expect(await scriptsEverywhere()).toBe(true);
+    const r = await call('browser_evaluate', { script: 'window.__ran = 1; return 1' });
+    expect(r.isError, r.text).toBeFalsy();
+    await noPrompt();
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', 'false');
+    const pending = call('browser_evaluate', { script: 'return 2' });
+    await answerPrompt(h.ctx, h.sw, DECLINE);
+    expect((await pending).isError).toBe(true);
+    await popup.close();
+  });
+
+  test('page scripts run without asking by default, including for settings saved before the switch existed', async () => {
+    await setSettings(null);
+    expect(await h.sw.evaluate(async () => (await chrome.storage.local.get('policySettings')).policySettings)).toBeUndefined();
+    const r = await call('browser_evaluate', { script: 'return document.title' });
+    expect(r.isError, r.text).toBeFalsy();
+    await setSettings({ approvalTimeoutMs: 120_000 });
+    const again = await call('browser_evaluate', { script: 'return 1' });
+    expect(again.isError, again.text).toBeFalsy();
+    await noPrompt();
+    const popup = await h.ctx.newPage();
+    await popup.goto(extUrl('popup.html'));
+    await popup.locator('#sites > button').click();
+    await expect(popup.locator('#scripts-everywhere')).toHaveAttribute('aria-checked', 'true');
+    await popup.close();
+  });
+
+  test('with the switch on, blocked sites stay blocked and secret placeholders are still refused', async () => {
+    await setScriptsEverywhere(true);
+    await setRules({ 'block.localhost': 'block' });
+    const nav = await open('/index.html', 'block.localhost');
+    expect(nav.isError).toBe(true);
+    await h.sw.evaluate(() => chrome.storage.local.set({ secrets: { E2E_TOKEN: 'tok-ABC123xyz789' } }));
+    try {
+      const refused = await call('browser_evaluate', { script: 'return "{{secret:E2E_TOKEN}}"' });
+      expect(refused.isError).toBe(true);
+    } finally {
+      await h.sw.evaluate(() => chrome.storage.local.remove('secrets'));
+    }
+    await noPrompt();
+  });
+
+  test('the prompt works from the keyboard: Tab into the card, Enter on its first button', async () => {
+    const pending = call('browser_evaluate', { script: 'return 1' });
+    const { page } = await waitForPrompt(h.ctx, h.sw);
+    await page.bringToFront();
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    let inCard = false;
+    for (let i = 0; i < 40 && !inCard; i++) {
+      await page.keyboard.press('Tab');
+      inCard = await page.evaluate(() => document.activeElement?.tagName === 'HELMSMAN-OVERLAY');
+    }
+    expect(inCard).toBe(true);
+    await page.keyboard.press('Tab'); // past the agent bar's Stop button, onto the card's first button
+    await page.keyboard.press('Enter');
+    expect((await pending).isError).toBeFalsy();
+    expect(await storedScriptRules()).toEqual({ 'script:localhost': 'allow' });
   });
 
   test('reading tools never ask', async () => {
@@ -751,7 +838,7 @@ test.describe('clicks by coordinates', () => {
       expect(prompt.kind).toBe('sensitive');
       expect(prompt.title).toMatch(/send or submit$/);
       expect(prompt.detail).toBe('“Gửi” on localhost');
-      await answerPrompt(h.ctx, h.sw, 'Decline');
+      await answerPrompt(h.ctx, h.sw, DECLINE);
       const r = await pending;
       expect(r.isError).toBe(true);
       expect(r.text).toMatch(/The user declined this action \(send: "Gửi"\)/);
@@ -782,7 +869,7 @@ test.describe('clicks by coordinates', () => {
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/delete or remove$/);
     expect(prompt.detail).toBe('“Xoá tài khoản” on localhost');
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await outcome.textContent()).toBe('');
 
@@ -806,13 +893,13 @@ test.describe('clicks by coordinates', () => {
     const pending = call('browser_mouse_xy', { ref: refOf(snap.text, 'Xem chi tiết', 'button'), x: del.x + del.width / 2 - view.x, y: del.y + del.height / 2 - view.y });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/delete or remove$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await inner.locator('#result').textContent()).toBe('');
 
     // And aimed with the ref of the dangerous button itself.
     const direct = call('browser_mouse_xy', { ref: refOf(snap.text, 'Xoá tài khoản', 'button'), x: 12, y: 12 });
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await direct).isError).toBe(true);
     expect(await inner.locator('#result').textContent()).toBe('');
   });
@@ -825,7 +912,7 @@ test.describe('clicks by coordinates', () => {
     const pending = call('browser_mouse_xy', { ref: refOf(snap.text, 'Xem trước', 'button'), x: send.x + 20 - safe.x, y: 20 });
     const prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/send or submit$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     expect(await result(page)).toBe('');
   });
@@ -836,7 +923,7 @@ test.describe('clicks by coordinates', () => {
     let pending = call('browser_mouse_xy', { action: 'drag', x: 5, y: 5, toX: pass.x, toY: pass.y });
     let prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/type into a password field$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
 
     page = await openPage('/index.html');
@@ -844,7 +931,7 @@ test.describe('clicks by coordinates', () => {
     pending = call('browser_mouse_xy', { action: 'drag', x: 5, y: 5, toX: file.x, toY: file.y });
     prompt = await waitForPrompt(h.ctx, h.sw);
     expect(prompt.title).toMatch(/attach a file$/);
-    await answerPrompt(h.ctx, h.sw, 'Decline');
+    await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
     // A drop on an ordinary element does not ask.
     const drop = centerOf(await boxOf(page.locator('#drop')));

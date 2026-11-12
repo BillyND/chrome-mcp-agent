@@ -70,8 +70,8 @@ How it works:
 
 Everything is enforced in the extension, so it applies to every MCP client.
 
-- **Site rules:** allow, ask or block per site. A default list blocks banking, crypto exchanges and adult sites.
-- **On-page confirmation** before sending, deleting, paying, downloading, entering passwords or running page scripts. Only a real click can approve; the agent cannot press the button itself.
+- **Site rules:** allow, ask or block per site. No site is blocked by default; block any site yourself.
+- **On-page confirmation** before sending, deleting, paying, downloading or entering passwords. Page scripts run without asking unless you turn that off under Sites. Only a real click can approve; the agent cannot press the button itself.
 - **Hard blocks:** card numbers, ID numbers, account creation and credential files.
 - **Prompt-injection hardening:** page content is wrapped as untrusted and hidden text is stripped.
 - **Secrets stay hidden:** values are redacted from every result, and screenshots and PDFs are masked.

@@ -2,7 +2,6 @@
 // short-lived answers to "Allow <agent> on <host>?" in chrome.storage.session.
 
 import type { SiteAction, SitesView } from '../../messages';
-import { DEFAULT_BLOCKS } from './default-blocks';
 import type { SiteRules } from './site-rules';
 
 const RULES_KEY = 'siteRules';
@@ -18,6 +17,8 @@ export interface PolicySettings {
   grantMs: number;
   /** How long a declined host stays declined for that agent, so it cannot nag the user in a loop. */
   denyMs: number;
+  /** Let browser_evaluate run on every site that is not blocked, without asking. On unless the user turned it off. */
+  scriptsEverywhere: boolean;
 }
 
 export const DEFAULT_SETTINGS: PolicySettings = {
@@ -25,6 +26,7 @@ export const DEFAULT_SETTINGS: PolicySettings = {
   handbackTimeoutMs: 600_000,
   grantMs: 30 * 60_000,
   denyMs: 60_000,
+  scriptsEverywhere: true,
 };
 
 export async function getSettings(): Promise<PolicySettings> {
@@ -53,12 +55,17 @@ export const setRule = (host: string, action: SiteAction | null): Promise<void> 
     await chrome.storage.local.set({ [RULES_KEY]: rules });
   });
 
-/** The user's rules and the built-in blocks they have not unblocked, for the popup. */
+/** Turns "run page scripts on every site" on or off. */
+export const setScriptsEverywhere = (enabled: boolean): Promise<void> =>
+  serial(async () => {
+    await chrome.storage.local.set({ [SETTINGS_KEY]: { ...(await getSettings()), scriptsEverywhere: enabled } });
+  });
+
+/** The user's site rules, for the popup. */
 export async function sitesView(): Promise<SitesView> {
   const rules = await getRules();
   return {
     rules: Object.entries(rules).map(([host, action]) => ({ host, action })).sort((a, b) => a.host.localeCompare(b.host)),
-    defaults: DEFAULT_BLOCKS.map((b) => ({ host: b.host, category: b.category, unblocked: rules[b.host] === 'allow' })).filter((d) => !d.unblocked),
   };
 }
 
