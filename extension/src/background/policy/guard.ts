@@ -87,8 +87,7 @@ export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
   ctx.audit.host = decision.host;
   if (decision.action === 'allow') return;
   if (decision.action === 'block') {
-    const why = decision.source === 'default' ? `blocked by default (${decision.category})` : 'blocked by a rule the user set';
-    REFUSED(ctx, `${decision.host} is ${why} in Helmsman. Do not reach it another way (another tool or URL); tell the user, who can unblock it in the Helmsman popup under Sites.`);
+    REFUSED(ctx, `${decision.host} is blocked by a rule the user set in Helmsman. Do not reach it another way (another tool or URL); tell the user, who can unblock it in the Helmsman popup under Sites.`);
   }
   await grantGate(ctx, 'site', decision.host, decision.host, `access to ${decision.host}`);
 }

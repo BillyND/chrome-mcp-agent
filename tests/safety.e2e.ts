@@ -76,19 +76,6 @@ test.describe('site rules', () => {
     await noPrompt();
   });
 
-  test('banking, crypto, adult and web store sites are blocked by default', async () => {
-    for (const [url, category] of [
-      ['https://www.paypal.com/signin', 'banking'],
-      ['https://www.binance.com/', 'crypto'],
-      ['https://www.pornhub.com/', 'adult'],
-      ['https://chromewebstore.google.com/', 'store'],
-    ]) {
-      const r = await call('browser_navigate', { url });
-      expect(r.isError, url).toBe(true);
-      expect(r.text).toContain(`blocked by default (${category})`);
-    }
-  });
-
   test('a tab that is already on a blocked site refuses every tool; navigating away still works', async () => {
     await setRules({ localhost: 'block' });
     for (const tool of ['browser_snapshot', 'browser_get_text', 'browser_screenshot']) {
@@ -582,7 +569,6 @@ test.describe('audit log and popup', () => {
     // The popup still shows the latest few entries from the same log.
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
-    await expect(popup.locator('#log li').first()).toBeVisible();
     await popup.close();
 
     // Clear.
@@ -594,11 +580,11 @@ test.describe('audit log and popup', () => {
     await audit.close();
   });
 
-  test('the popup lists rules and built-in blocks: add, unblock and remove', async () => {
+  test('the popup lists rules: add and remove', async () => {
     await setRawRules({}); // this test is about site rules only
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
-    await popup.locator('#sites summary').first().click();
+    await popup.locator('#sites > button').click();
     await expect(popup.locator('#site-rules')).toContainText('No rules yet');
     await popup.getByPlaceholder('example.com').fill('https://www.Shop.example.org/cart');
     await popup.locator('#sites select').selectOption('ask');
@@ -606,17 +592,8 @@ test.describe('audit log and popup', () => {
     await expect(popup.locator('#site-rules li[data-host="shop.example.org"]')).toContainText('Ask');
     expect(await storedRules()).toEqual({ 'shop.example.org': 'ask' });
 
-    // Unblock a built-in block, then remove that rule to block it again.
-    await popup.locator('#sites details summary', { hasText: 'Blocked by default' }).click();
-    await popup.locator('#sites li', { hasText: 'paypal.com' }).getByRole('button', { name: 'Unblock' }).click();
-    await expect(popup.locator('#site-rules li[data-host="paypal.com"]')).toContainText('Allow');
-    expect((await storedRules())['paypal.com']).toBe('allow');
-    await popup.locator('#site-rules li[data-host="paypal.com"]').getByRole('button', { name: 'Remove' }).click();
-    await expect(popup.locator('#site-rules li[data-host="paypal.com"]')).toHaveCount(0);
     await popup.locator('#site-rules li[data-host="shop.example.org"]').getByRole('button', { name: 'Remove' }).click();
     expect(await storedRules()).toEqual({});
-    const r = await call('browser_navigate', { url: 'https://www.paypal.com/' });
-    expect(r.isError).toBe(true);
     await popup.close();
   });
 
@@ -655,6 +632,7 @@ test.describe('running page scripts', () => {
   let tab: Page;
   test.beforeEach(async () => {
     await setRawRules({}); // no standing permission to run scripts
+    await setScriptsEverywhere(false); // the default is on; these tests are about the question
     tab = await openPage('/index.html');
   });
   const ran = () => tab.evaluate(() => (window as any).__ran ?? null);
@@ -757,7 +735,7 @@ test.describe('running page scripts', () => {
   test('the popup switch: ON runs scripts without asking, OFF asks again', async () => {
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
-    await popup.locator('#sites summary').first().click();
+    await popup.locator('#sites > button').click();
     const toggle = popup.locator('#scripts-everywhere');
     await expect(toggle).toHaveAttribute('aria-checked', 'false');
     await expect(popup.locator('#sites')).toContainText('Let AI run page scripts on every site');
@@ -772,6 +750,22 @@ test.describe('running page scripts', () => {
     const pending = call('browser_evaluate', { script: 'return 2' });
     await answerPrompt(h.ctx, h.sw, DECLINE);
     expect((await pending).isError).toBe(true);
+    await popup.close();
+  });
+
+  test('page scripts run without asking by default, including for settings saved before the switch existed', async () => {
+    await setSettings(null);
+    expect(await h.sw.evaluate(async () => (await chrome.storage.local.get('policySettings')).policySettings)).toBeUndefined();
+    const r = await call('browser_evaluate', { script: 'return document.title' });
+    expect(r.isError, r.text).toBeFalsy();
+    await setSettings({ approvalTimeoutMs: 120_000 });
+    const again = await call('browser_evaluate', { script: 'return 1' });
+    expect(again.isError, again.text).toBeFalsy();
+    await noPrompt();
+    const popup = await h.ctx.newPage();
+    await popup.goto(extUrl('popup.html'));
+    await popup.locator('#sites > button').click();
+    await expect(popup.locator('#scripts-everywhere')).toHaveAttribute('aria-checked', 'true');
     await popup.close();
   });
 

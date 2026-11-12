@@ -4,7 +4,7 @@ import * as SwitchPrimitive from '@radix-ui/react-switch';
 import { Slot } from '@radix-ui/react-slot';
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
 import { cva, type VariantProps } from 'class-variance-authority';
-import type { ComponentProps } from 'react';
+import { useState, type ComponentProps, type ReactNode } from 'react';
 import { cn } from './utils';
 
 const buttonVariants = cva(
@@ -91,5 +91,27 @@ export function ToggleGroupItem({ className, ...props }: ComponentProps<typeof T
       )}
       {...props}
     />
+  );
+}
+
+/** A collapsible block like shadcn's Collapsible: the whole header row toggles it, a count sits before the chevron. */
+export function Collapsible({ id, title, count, children }: { id: string; title: string; count?: number; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div id={id} className="rounded-lg border bg-card text-card-foreground">
+      <button
+        type="button"
+        aria-expanded={open}
+        onClick={() => setOpen(!open)}
+        className={cn('flex w-full cursor-pointer items-center gap-2 px-3 py-2.5 text-left text-[15px] font-medium outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50', open ? 'rounded-t-lg' : 'rounded-lg')}
+      >
+        <span className="flex-1">{title}</span>
+        {count !== undefined && <span className="text-[13px] font-normal text-muted-foreground">{count}</span>}
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true">
+          <path d="m6 9 6 6 6-6" />
+        </svg>
+      </button>
+      {open && <div className="flex flex-col gap-2 border-t p-3">{children}</div>}
+    </div>
   );
 }

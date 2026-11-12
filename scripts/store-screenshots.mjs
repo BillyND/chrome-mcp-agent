@@ -134,9 +134,9 @@ img{max-height:${maxHeight}px;max-width:1120px;border-radius:14px;box-shadow:0 2
 
   await sw.evaluate(() => chrome.storage.local.set({ siteRules: { 'northwind.example': 'allow', 'mail.example.com': 'ask', 'crm.example.org': 'block' } }));
   await popup.reload();
-  await popup.locator('#sites summary').first().click();
+  await popup.locator('#sites > button').click();
   await popup.locator('#site-rules li').first().waitFor();
-  await framed('4-site-rules.png', 'You decide where the AI can go', 'Allow, ask or block any site. Banks, crypto and the Web Store are blocked by default', await popup.locator('#root').screenshot({ type: 'png' }), { maxHeight: 640 });
+  await framed('4-site-rules.png', 'You decide where the AI can go', 'Allow, ask or block any site, whenever you want', await popup.locator('#root').screenshot({ type: 'png' }), { maxHeight: 640 });
   await popup.close();
 
   // 5. landing page, straight from the gateway.

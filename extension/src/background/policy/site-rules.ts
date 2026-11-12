@@ -2,17 +2,15 @@
 // Pure functions; storage lives in store.ts.
 
 import type { SiteAction } from '../../messages';
-import { DEFAULT_BLOCKS, type BlockCategory } from './default-blocks';
 
 export type SiteRules = Record<string, SiteAction>;
 
 export interface SiteDecision {
   action: SiteAction;
-  /** Where the verdict came from: a rule the user made, a built-in block, or nothing (unknown sites are allowed). */
-  source: 'user' | 'default' | 'none';
+  /** Where the verdict came from: a rule the user made, or nothing (unknown sites are allowed). */
+  source: 'user' | 'none';
   /** The rule host that matched. */
   rule?: string;
-  category?: BlockCategory;
   host: string;
 }
 
@@ -45,14 +43,6 @@ export function hostMatches(host: string, rule: string): boolean {
   return !IP.test(host) && host.endsWith(`.${rule}`);
 }
 
-function pathOf(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return '';
-  }
-}
-
 /** The most specific (longest) matching key, so "mail.example.com" beats "example.com". */
 function bestRule(host: string, rules: SiteRules): string | undefined {
   let best: string | undefined;
@@ -67,9 +57,6 @@ export function decideSite(url: string, rules: SiteRules): SiteDecision {
   if (!host) return { action: 'allow', source: 'none', host };
   const rule = bestRule(host, rules);
   if (rule) return { action: rules[rule], source: 'user', rule, host };
-  const path = pathOf(url);
-  const block = DEFAULT_BLOCKS.find((b) => hostMatches(host, b.host) && (!b.pathPrefix || path.startsWith(b.pathPrefix)));
-  if (block) return { action: 'block', source: 'default', rule: block.host, category: block.category, host };
   return { action: 'allow', source: 'none', host };
 }
 

@@ -176,5 +176,4 @@ export interface PopupState {
 
 export interface SitesView {
   rules: Array<{ host: string; action: SiteAction }>;
-  defaults: Array<{ host: string; category: string; unblocked: boolean }>;
 }

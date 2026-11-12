@@ -28,7 +28,7 @@ Privacy policy URL: `https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/priva
 >
 > You stay in control:
 > • "Allow AI control" is a one-click kill switch, and an on-page bar shows when the agent works, with a Stop button
-> • Per-site rules: allow, ask or block any website. Banks, crypto exchanges, adult sites and the Chrome Web Store are blocked by default
+> • Per-site rules: allow, ask or block any website
 > • Sensitive actions (submit, pay, delete, post, download, password fields) always ask you on the page first
 > • Card numbers, ID numbers and secret-looking files are hard-blocked; a secrets vault keeps passwords out of the model's sight
 > • Text taken from web pages is labelled as untrusted data to resist prompt injection
@@ -85,7 +85,7 @@ Paste each into the matching field of the "Privacy practices" tab.
 | `webNavigation` | Detects page loads, redirects and frame creation so the agent waits for pages to finish loading, can address iframes, and so site rules are re-checked after a redirect. |
 | `cookies` | Used only by the `browser_cookies` tool when the AI asks, and by the site-rule check for the cookie's target host. Results go only to the user's own AI client. Reading or writing is blocked for hosts the user's rules block. |
 | `history` | Used only by the `browser_history` tool (search or list recent visits) when the AI asks, so it can reopen a page the user mentions. Results go only to the user's own AI client. |
-| Host permission `<all_urls>` | The user may ask the AI to work on any website, so the content script and debugger must be able to run on any origin and in every frame (cross-origin iframes included). Access is narrowed by the user: per-site Allow / Ask / Block rules (banks, crypto, adult sites and the Chrome Web Store are blocked by default) and an on/off master switch. |
+| Host permission `<all_urls>` | The user may ask the AI to work on any website, so the content script and debugger must be able to run on any origin and in every frame (cross-origin iframes included). Access is narrowed by the user: per-site Allow / Ask / Block rules and an on/off master switch. |
 
 ## Remote code
 
