@@ -581,7 +581,9 @@ test.describe('audit log and popup', () => {
     await popup.locator('#sites > button').click();
     await expect(popup.locator('#site-rules')).toContainText('No rules yet');
     await popup.getByPlaceholder('example.com').fill('https://www.Shop.example.org/cart');
-    await popup.locator('#sites select').selectOption('ask');
+    await popup.locator('#site-action').click();
+    await popup.locator('[role=menuitemradio][data-value="ask"]').click();
+    await expect(popup.locator('#site-action')).toContainText('Ask');
     await popup.locator('#sites button', { hasText: '+' }).click();
     await expect(popup.locator('#site-rules li[data-host="shop.example.org"]')).toContainText('Ask');
     expect(await storedRules()).toEqual({ 'shop.example.org': 'ask' });

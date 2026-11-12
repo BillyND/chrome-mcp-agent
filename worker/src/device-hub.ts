@@ -5,8 +5,11 @@
 import { DurableObject } from 'cloudflare:workers';
 import type { HubToExtension } from '../../shared/protocol';
 import { PROTOCOL } from '../../shared/protocol';
-import { type CallResult, parseExtensionMessage, Relay } from '../../shared/relay';
+import { type CallResult, errorResult, parseExtensionMessage, Relay } from '../../shared/relay';
 import type { Env } from './env';
+import { isActiveDevice } from './pairing';
+
+export const DISCONNECTED = 'This Chrome was disconnected from Helmsman. Tell the user to reconnect: click the Helmsman icon in Chrome, press Connect, then remove and re-add the Helmsman connector with the new code.';
 
 export type { CallResult };
 
@@ -23,6 +26,13 @@ export class DeviceHub extends DurableObject<Env> {
     notConnected:
       'Chrome is not connected. Ask the user to open Chrome and check that the Helmsman extension shows "Connected" (click its icon and sign in if needed).',
   });
+
+  /**
+   * Whether this Chrome is registered. Only a "yes" is remembered, so KV is read once per object
+   * lifetime instead of on every MCP request, while a "no" (a fresh registration KV has not spread yet,
+   * or a disconnected Chrome) is checked again next time. forget() clears it the moment the user disconnects.
+   */
+  private active = false;
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env);
@@ -71,9 +81,28 @@ export class DeviceHub extends DurableObject<Env> {
     return this.ctx.getWebSockets().find((ws) => ws.readyState === WebSocket.OPEN);
   }
 
+  private async isActive(device: string): Promise<boolean> {
+    if (!this.active) this.active = await isActiveDevice(this.env, device);
+    return this.active;
+  }
+
   /** RPC from the MCP endpoint: run one tool in the user's Chrome. */
-  call(tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false, agent?: string): Promise<CallResult> {
+  async call(device: string, tool: string, args: Record<string, unknown>, timeoutMs: number, readOnly = false, agent?: string): Promise<CallResult> {
+    if (!(await this.isActive(device))) return errorResult(DISCONNECTED);
     return this.relay.call(tool, args, timeoutMs, readOnly, agent);
+  }
+
+  /** RPC when the user disconnects this Chrome: later calls are refused at once and the extension's socket closes. */
+  forget(): void {
+    this.active = false;
+    for (const ws of this.ctx.getWebSockets()) {
+      try {
+        ws.close(4001, 'Disconnected');
+      } catch {
+        /* already closed */
+      }
+      this.relay.lost(ws, 'dropped');
+    }
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {

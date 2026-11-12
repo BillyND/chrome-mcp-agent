@@ -62,6 +62,10 @@ for (const theme of ['light', 'dark']) {
       if (await header.count()) await header.click();
     }
     await popup.waitForTimeout(300);
+    await popup.locator('#site-action').click();
+    await popup.waitForTimeout(250);
+    await save(popup, 'Popup', `Chọn quy tắc trang · ${lang.toUpperCase()} · ${theme}`, `popup-site-action-${lang}-${theme}.png`, 400);
+    await popup.keyboard.press('Escape');
     for (const menu of ['lang', 'theme']) {
       await popup.locator(`#${menu}-menu`).click();
       await popup.waitForTimeout(250);

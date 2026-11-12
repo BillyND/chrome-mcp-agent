@@ -34,6 +34,11 @@ export const withClaimLock = <T>(fn: () => Promise<T>): Promise<T> => claims.run
 
 export const defaultTabOf = (agent: string): number | undefined => store.defaults[agent];
 export const ownerOf = (tabId: number): string | undefined => store.owners[tabId];
+/** Every tab `agent` owns. */
+export async function tabsOf(agent: string): Promise<number[]> {
+  await loaded;
+  return Object.entries(store.owners).filter(([, owner]) => owner === agent).map(([tabId]) => Number(tabId));
+}
 
 /** Makes `tab` belong to `agent` (and optionally its default) and puts it in the agent's tab group. Call inside the claim lock. */
 export async function adopt(agent: string, tab: chrome.tabs.Tab, makeDefault: boolean): Promise<void> {

@@ -149,9 +149,9 @@ const defaultHandler: ExportedHandler<Env> = {
 const mcpHandler = {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const { device, agent } = (ctx.props as AuthProps | undefined) ?? {};
-    if (!device || !(await isActiveDevice(env, device))) {
-      return new Response('This Chrome was disconnected. Reconnect Helmsman in ChatGPT.', { status: 401 });
-    }
+    // Whether the device is still registered is checked by its Durable Object on each tool call
+    // (cached there), which saves a KV read on every MCP request.
+    if (!device) return new Response('Unauthorized', { status: 401 });
     return handleMcp(request, env, device, agent);
   },
 };
@@ -170,7 +170,9 @@ function providerFor(env: Env): OAuthProvider<Env> {
       clientRegistrationEndpoint: '/oauth/register',
       scopesSupported: ['browser', 'offline_access'],
       requiredScopes: ['browser'],
-      accessTokenTTL: 3600,
+      // Revoking a Chrome is enforced per call by its Durable Object, so access tokens can live a week: far
+      // fewer refreshes, and each refresh costs KV writes (1,000 a day on the free plan).
+      accessTokenTTL: 7 * 24 * 3600,
       refreshTokenIdleTTL: 90 * 24 * 3600,
       resourceMetadata: {
         resource: `${env.PUBLIC_URL}/mcp`,

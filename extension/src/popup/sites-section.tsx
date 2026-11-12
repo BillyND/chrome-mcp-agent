@@ -6,7 +6,7 @@ import { t, type Key, type Lang } from '../i18n';
 import type { PopupState, SiteAction } from '../messages';
 import { choiceLabel, isPrimary, promptCopy } from '../prompt-copy';
 import { post } from './send';
-import { Button, Card, Collapsible, Input } from './ui/components';
+import { Button, Card, Collapsible, Input, MenuPopover } from './ui/components';
 import { cn } from './ui/utils';
 
 /** Questions the page prompt could not show (chrome:// pages, closed tabs) are answered here. */
@@ -62,14 +62,14 @@ export function SitesSection({ s, lang }: { s: PopupState; lang: Lang }) {
       </ul>
       <div className="flex gap-1.5">
         <Input className="h-8 min-w-0 flex-1 text-[13px]" placeholder={tr('site_add')} value={host} onChange={(e) => setHost(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
-        <select
-          className="h-8 rounded-md border border-input bg-background px-1.5 text-[13px]"
+        <MenuPopover
+          id="site-action"
+          label={tr('site_rule')}
+          showValue
           value={action}
-          onChange={(e) => setAction(e.target.value as SiteAction)}
-          aria-label="Rule"
-        >
-          {ACTIONS.map((a) => <option key={a} value={a}>{tr(`site_${a}` as Key)}</option>)}
-        </select>
+          options={ACTIONS.map((a) => ({ value: a, label: tr(`site_${a}` as Key) }))}
+          onSelect={setAction}
+        />
         <Button size="sm" variant="outline" onClick={add}>+</Button>
       </div>
     </Collapsible>

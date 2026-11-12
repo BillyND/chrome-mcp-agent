@@ -14,7 +14,7 @@ export async function handleMcp(request: Request, env: Env, device: string, agen
   const hub = env.HUB.get(env.HUB.idFromName(device));
   const profile = parseProfile(new URL(request.url).searchParams.get('profile'));
   const call = async (tool: string, args: Record<string, unknown>, timeoutMs: number, safeToRepeat: boolean) => {
-    const result = await hub.call(tool, args, timeoutMs, safeToRepeat, agent);
+    const result = await hub.call(device, tool, args, timeoutMs, safeToRepeat, agent);
     const first = result.content[0];
     if (result.isError && first?.type === 'text' && first.text.startsWith('Chrome is not connected')) {
       // The usual cause is a ChatGPT link made with an old code (the extension was reinstalled

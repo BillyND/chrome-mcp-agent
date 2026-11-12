@@ -11,7 +11,10 @@ import { parseWorkflowDetail, parseWorkflowList, promptArguments, workflowInstru
 export type ToolCaller = (tool: string, args: Record<string, unknown>, timeoutMs: number, safeToRepeat: boolean) => Promise<CallResult>;
 
 export const INSTRUCTIONS = `Helmsman controls the user's own Google Chrome (their real tabs and logged-in accounts).
-Workflow: browser_tabs (list, or "new" for a tab of your own) -> browser_snapshot -> act with refs from the latest snapshot -> snapshot again to verify.
+Workflow: browser_tabs (list, or "new" for a tab of your own) -> browser_snapshot -> act with refs from the latest snapshot -> check the change summary each action returns -> browser_done when the task is finished.
+- Work where the user can see it: they watch your cursor move and click. Do the task through the page's own UI (browser_click, browser_type, browser_fill_form, browser_select_option, browser_scroll, browser_navigate) rather than behind the scenes. Use browser_evaluate only to read data or when no UI path exists, never to click, fill or submit for you, and never to call a site's internal APIs.
+- When the task is done, or you stop to wait for the user, call browser_done once: it hides your cursor and bar and closes Chrome's debugging bar right away.
+- Be fast: one action per step and trust its returned summary instead of taking a new snapshot after every action; fill several fields with one browser_fill_form; use browser_find or a scoped snapshot (ref) to look up one thing instead of a full snapshot.
 - Refs look like "e12" (top page) or "f3e7" (inside an iframe); iframes, including cross-origin ones, are part of the snapshot and work like normal elements.
 - Every action returns a short page summary; once you have a snapshot of the tab it is only a diff (+ added, - removed, ~ changed lines), so keep the earlier snapshot in mind. Take a new full browser_snapshot after navigation or big page changes because refs from older snapshots expire.
 - Prefer browser_snapshot over screenshots; use browser_screenshot for visual checks (charts, captchas, layouts). Use browser_find for a quick text lookup and browser_extract for links, tables, forms and metadata.

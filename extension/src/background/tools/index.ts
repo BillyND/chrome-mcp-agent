@@ -31,6 +31,7 @@ import { navigationTools } from './navigation';
 import { pageDataTools } from './page-data';
 import { Scheduler } from './scheduler';
 import { selectionTools } from './selection';
+import { sessionTools } from './session';
 import { snapshotTools } from './snapshot';
 import { tabsTools } from './tabs';
 import { resolveTab } from './tab';
@@ -59,6 +60,7 @@ const TOOLS: Record<string, ToolSpec> = {
   ...handbackTools,
   ...outputTools,
   ...secretsTools,
+  ...sessionTools,
   // Replays call tools like any agent would, but must not be recorded as steps themselves.
   ...workflowTools((tool, args, agent) => execute(tool, args, agent, false)),
 };

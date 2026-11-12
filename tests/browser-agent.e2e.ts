@@ -221,6 +221,17 @@ test('the agent bar and cursor stay visible through screenshots, think time and 
   await page.waitForTimeout(8_500);
   expect((await call('browser_snapshot')).isError).toBeFalsy();
   await expect.poll(overlayState).toBe('shown');
+
+  // browser_done: the agent finishes on its own, so the cursor and bar go at once and the debugger lets go.
+  const done = await call('browser_done');
+  expect(done.isError, done.text).toBeFalsy();
+  expect(done.text).toMatch(/released \d+ tab/);
+  await expect.poll(overlayState).toBe('hidden');
+  // getTargets() also counts Playwright's own CDP session, so ask the extension's: detaching it again must fail.
+  expect(await sw.evaluate((id) => chrome.debugger.detach({ tabId: id }).then(() => 'attached', () => 'released'), tabId)).toBe('released');
+  // A later call simply starts again.
+  expect((await call('browser_snapshot')).isError).toBeFalsy();
+  await expect.poll(overlayState).toBe('shown');
 });
 
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {

@@ -174,7 +174,7 @@ describe('tool profiles', () => {
   it('core is a short subset that still can read, act and page', () => {
     const core = toolsForProfile('core');
     expect(core.length).toBe(CORE_TOOL_NAMES.length);
-    expect(core.length).toBeLessThanOrEqual(14);
+    expect(core.length).toBeLessThanOrEqual(15);
     expect(core.length).toBeLessThan(TOOLS.length / 2);
     for (const name of ['browser_snapshot', 'browser_click', 'browser_type', 'browser_read_more', 'browser_navigate']) {
       expect(core.map((t) => t.name)).toContain(name);

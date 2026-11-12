@@ -46,8 +46,7 @@ export async function registerDevice(
   }
   const device = crypto.randomUUID();
   const code = newCode();
-  await env.OAUTH_KV.put(`pair:${code}`, device);
-  await env.OAUTH_KV.put(`device:${device}`, code);
+  await Promise.all([env.OAUTH_KV.put(`pair:${code}`, device), env.OAUTH_KV.put(`device:${device}`, code)]);
   return { ok: true, token: await signDeviceToken(env.TOKEN_SECRET, device), code };
 }
 
@@ -63,6 +62,17 @@ export async function isActiveDevice(env: Env, device: string): Promise<boolean>
 /** Signing out of the extension retires its code, so ChatGPT links made with it stop working. */
 export async function forgetDevice(env: Env, device: string): Promise<void> {
   const code = await env.OAUTH_KV.get(`device:${device}`);
-  if (code) await env.OAUTH_KV.delete(`pair:${code}`);
-  await env.OAUTH_KV.delete(`device:${device}`);
+  await Promise.all([code ? env.OAUTH_KV.delete(`pair:${code}`) : undefined, env.OAUTH_KV.delete(`device:${device}`)]);
+  // Revoking the grants makes every AI client's token for this Chrome fail with 401 (as KV propagates),
+  // and the device's own object refuses tool calls at once.
+  await Promise.all([revokeGrants(env, device), env.HUB.get(env.HUB.idFromName(device)).forget()]);
+}
+
+async function revokeGrants(env: Env, device: string): Promise<void> {
+  let cursor: string | undefined;
+  do {
+    const page = await env.OAUTH_PROVIDER.listUserGrants(device, { cursor });
+    await Promise.all(page.items.map((g) => env.OAUTH_PROVIDER.revokeGrant(g.id, device)));
+    cursor = page.cursor;
+  } while (cursor);
 }

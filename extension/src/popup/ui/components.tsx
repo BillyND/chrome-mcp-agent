@@ -67,18 +67,24 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
 }
 
 
-/** An outline icon button that opens a small menu of choices, like shadcn's Popover with a command list; the current choice is checked. */
+/**
+ * A button that opens a small menu of choices, like shadcn's Popover with a command list; the current choice
+ * is checked. The trigger is an icon button, or with `showValue` a small button naming the current choice
+ * (the app's replacement for a native <select>).
+ */
 export function MenuPopover<T extends string>({
   id,
   label,
   trigger,
+  showValue,
   value,
   options,
   onSelect,
 }: {
   id: string;
   label: string;
-  trigger: ReactNode;
+  trigger?: ReactNode;
+  showValue?: boolean;
   value: T;
   options: { value: T; label: string; icon?: ReactNode }[];
   onSelect: (value: T) => void;
@@ -87,9 +93,16 @@ export function MenuPopover<T extends string>({
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <Button id={id} variant="outline" size="icon" aria-label={label} title={label}>
-          {trigger}
-        </Button>
+        {showValue ? (
+          <Button id={id} variant="outline" size="sm" aria-label={label} className="gap-1 px-2.5 text-[13px] font-normal">
+            {options.find((o) => o.value === value)?.label}
+            <span className="text-muted-foreground [&_svg]:size-3.5">{Icon.chevronDown}</span>
+          </Button>
+        ) : (
+          <Button id={id} variant="outline" size="icon" aria-label={label} title={label}>
+            {trigger}
+          </Button>
+        )}
       </PopoverPrimitive.Trigger>
       <PopoverPrimitive.Portal>
         <PopoverPrimitive.Content

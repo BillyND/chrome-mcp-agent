@@ -243,7 +243,7 @@ test.describe('tool profiles', () => {
     expect(full.length).toBeGreaterThan(30);
     expect(full).toContain('browser_workflow');
     expect(nonsense).toEqual(full);
-    expect(core.length).toBeLessThanOrEqual(14);
+    expect(core.length).toBeLessThanOrEqual(15);
     expect(core.length).toBeGreaterThanOrEqual(10);
     expect(core).toContain('browser_snapshot');
     expect(core).toContain('browser_read_more');
@@ -261,7 +261,7 @@ test.describe('tool profiles', () => {
     try {
       await core.initialize();
       const names = (await core.listTools()).map((t) => t.name);
-      expect(names.length).toBeLessThanOrEqual(14);
+      expect(names.length).toBeLessThanOrEqual(15);
       expect(names).toContain('browser_snapshot');
       expect(names).not.toContain('browser_cookies');
     } finally {

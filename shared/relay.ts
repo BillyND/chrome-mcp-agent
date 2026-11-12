@@ -43,6 +43,7 @@ interface Pending<L> {
   resolve: (r: CallResult) => void;
   timer: ReturnType<typeof setTimeout>;
   chunks?: string[];
+  received?: number;
 }
 
 export const DEFAULT_GRACE_MS = 20_000;
@@ -114,6 +115,7 @@ export class Relay<L extends RelayLink> {
     if (!p) return;
     p.link = link;
     p.chunks = undefined;
+    p.received = 0;
     try {
       link.send((this.opts.encode ?? encodeCall)(id, p.req, link));
     } catch {
@@ -128,8 +130,9 @@ export class Relay<L extends RelayLink> {
     if (!p) return;
     if (msg.type === 'chunk') {
       p.chunks ??= new Array<string>(msg.total);
+      if (p.chunks[msg.index] === undefined) p.received = (p.received ?? 0) + 1;
       p.chunks[msg.index] = msg.data;
-      if (p.chunks.filter((c) => c !== undefined).length < msg.total) return;
+      if ((p.received ?? 0) < msg.total) return;
       // The chunks carry the whole `result` message; keep only the result fields.
       const { content, isError } = JSON.parse(p.chunks.join('')) as CallResult;
       this.settle(msg.id, { content, isError });

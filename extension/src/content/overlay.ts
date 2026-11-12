@@ -21,6 +21,11 @@ const CSS = `
 .cursor svg{position:relative;display:block;overflow:visible;transform-origin:4.2px 3.2px;transition:transform .12s ease-out;filter:drop-shadow(0 0 1px rgba(255,255,255,.9)) drop-shadow(0 3px 6px rgba(0,0,0,.35))}
 /* Beacon: a soft light pool under the tip shows where the agent is about to act. */
 .spot{position:absolute;left:-15.8px;top:-16.8px;width:40px;height:40px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(24,24,27,.20) 0%,rgba(24,24,27,.08) 35%,transparent 70%);transition:background .3s ease}
+.sway{position:absolute;inset:0;transform-origin:4.2px 3.2px}
+/* At rest the cursor drifts slowly around its tip, like a hand resting on the mouse. */
+.cursor.idle .sway{animation:sway 3.6s ease-in-out infinite}
+@keyframes sway{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(1.2px,-.8px) rotate(-3deg)}50%{transform:translate(.2px,-1.5px) rotate(0)}75%{transform:translate(-1.1px,-.6px) rotate(3deg)}}
+@media (prefers-reduced-motion:reduce){.cursor.idle .sway{animation:none}}
 .cursor.ondark .spot{background:radial-gradient(circle,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 35%,transparent 70%)}
 .bar{position:fixed;left:50%;bottom:16px;transform:translateX(-50%) translateY(12px);display:flex;align-items:center;gap:10px;padding:6px 6px 6px 12px;border-radius:12px;background:var(--bg);color:var(--fg);border:1px solid var(--border);box-shadow:0 10px 30px -10px rgba(0,0,0,.25),0 2px 6px -2px rgba(0,0,0,.08);opacity:0;transition:opacity .2s ease,transform .2s ease;pointer-events:none}
 .bar.top{bottom:auto;top:16px}
@@ -43,11 +48,11 @@ button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 .prompt button:focus-visible{outline:2px solid var(--muted);outline-offset:2px}
 `;
 
-// Rounded pointer: zinc-900 body with a white rim, readable on light and dark pages.
-// Rounded pointer: a thick, round-joined stroke in the fill colour rounds every corner; a wider
-// white stroke underneath is the rim, and a top-down gloss gives it a little depth.
+// Rounded pointer, zinc-900 with a white rim so it reads on light and dark pages: a thick, round-joined
+// stroke in the fill colour rounds every corner, a wider white stroke underneath is the rim, and a
+// top-down gloss gives it a little depth.
 const CURSOR_PATH = 'M6 4.5 L24.5 13.2 Q25.6 13.8 24.4 14.3 L16.4 16.6 Q15.6 16.9 15.3 17.7 L12.6 25.3 Q12.2 26.4 11.6 25.3 Z';
-const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 34 34"><defs><linearGradient id="hm-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><path d="${CURSOR_PATH}" fill="#fff" stroke="#fff" stroke-width="6.4" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="#18181b" stroke="#18181b" stroke-width="1.6" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="url(#hm-gloss)"/></svg>`;
+const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 34 34"><defs><linearGradient id="hm-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><path d="${CURSOR_PATH}" fill="#fff" stroke="#fff" stroke-width="7.6" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="#18181b" stroke="#18181b" stroke-width="3.2" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="url(#hm-gloss)"/></svg>`;
 
 let host: HTMLElement | null = null;
 let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement; prompts: HTMLElement } | null = null;
@@ -63,7 +68,7 @@ function ensure() {
   if (parts && host?.isConnected) return parts;
   host = document.createElement('helmsman-overlay');
   const root = host.attachShadow({ mode: 'closed' });
-  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor"><span class="spot"></span>${CURSOR_SVG}</div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div><div class="prompts"></div></div>`;
+  root.innerHTML = `<style>${CSS}</style><div class="layer"><div class="cursor"><div class="sway"><span class="spot"></span>${CURSOR_SVG}</div></div><div class="bar"><span class="dot"></span><span class="txt"></span><button></button></div><div class="prompts"></div></div>`;
   const q = <T extends Element>(s: string) => root.querySelector(s) as unknown as T;
   parts = { layer: q('.layer'), cursor: q('.cursor'), arrow: q('svg'), bar: q('.bar'), txt: q('.txt'), btn: q('button'), prompts: q('.prompts') };
   void loadPrefs();
@@ -164,9 +169,19 @@ function spring(t: number): number {
   return 1 - decay * (Math.cos(wd * t) + ((zeta * omega) / wd) * Math.sin(wd * t));
 }
 
+let idleTimer: ReturnType<typeof setTimeout> | undefined;
+
+/** Starts the resting sway once the cursor has been still for a moment. */
+function settle() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => parts?.cursor.classList.add('idle'), 500);
+}
+
 function moveTo(x: number, y: number, durationMs: number): Promise<void> {
   const p = ensure();
   cancelAnimationFrame(frame);
+  clearTimeout(idleTimer);
+  p.cursor.classList.remove('idle');
   p.cursor.classList.add('on');
   p.cursor.classList.toggle('ondark', pageIsDark());
   // Enter from the lower middle of the viewport the first time (or after navigation).
@@ -177,6 +192,7 @@ function moveTo(x: number, y: number, durationMs: number): Promise<void> {
   pos = { x, y };
   if (dist < 2) {
     place(x, y);
+    settle();
     return Promise.resolve();
   }
   // Bow the path to alternating sides, more for longer moves, like a hand sweeping the mouse.
@@ -204,6 +220,7 @@ function moveTo(x: number, y: number, durationMs: number): Promise<void> {
       if (t < 1) frame = requestAnimationFrame(tick);
       else {
         place(x, y, 0);
+        settle();
         resolve();
       }
     };
@@ -270,6 +287,7 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
         place(pos.x, pos.y);
         ensure().cursor.classList.add('on');
         ensure().cursor.classList.toggle('ondark', pageIsDark());
+        settle();
       }
       break;
     case 'conceal':

@@ -26,7 +26,7 @@ Tiếng Việt: [hướng dẫn 10 phút](docs/san-sang.md) · [tài liệu đ�
    - When the consent page asks, paste your connection code.
 4. Ask ChatGPT, for example: *"Open my Gmail tab and summarize the 5 newest emails."*
 
-Add `?profile=core` to the URL for a slim set of 13 tools, which uses fewer tokens.
+Add `?profile=core` to the URL for a slim set of 15 tools, which uses fewer tokens.
 
 ### Claude Desktop, Cursor, Claude Code, VS Code, Codex CLI (local)
 

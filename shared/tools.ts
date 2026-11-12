@@ -533,6 +533,15 @@ export const TOOLS: ToolDef[] = [
     timeoutMs: 600_000,
   },
   {
+    name: 'browser_done',
+    title: 'Finish',
+    description:
+      'Call once when the task is finished (or you are stopping to wait for the user): hides your cursor and agent bar and releases your tabs, which also removes Chrome\'s "is debugging this browser" bar. Your tabs stay open; any later browser call simply starts again.',
+    inputSchema: obj({}),
+    readOnly: true,
+    timeoutMs: 10_000,
+  },
+  {
     name: 'browser_secrets_list',
     title: 'Secret names',
     description:
@@ -586,6 +595,7 @@ export const CORE_TOOL_NAMES: readonly string[] = [
   'browser_wait_for',
   'browser_secrets_list',
   'browser_request_user',
+  'browser_done',
 ];
 
 /** Unknown or missing values mean "full". */
