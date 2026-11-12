@@ -53,16 +53,14 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-/** Text shown in full (scrolls sideways when long) with a Copy button in its corner. */
+/** Text shown in full (scrolls sideways when long) with a Copy button beside it. */
 function CodeBox({ id, value, label }: { id: string; value: string; label: string }) {
   return (
-    <div className="relative">
-      <pre id={id} className="overflow-x-auto rounded-md border bg-muted py-2.5 pr-12 pl-3 font-mono text-xs leading-relaxed">
+    <div className="flex items-start gap-2">
+      <pre id={id} className="min-w-0 flex-1 overflow-x-auto rounded-md border bg-muted px-3 py-2 font-mono text-xs leading-relaxed">
         {value}
       </pre>
-      <div className="absolute top-1 right-1">
-        <CopyButton value={value} label={label} />
-      </div>
+      <CopyButton value={value} label={label} />
     </div>
   );
 }
