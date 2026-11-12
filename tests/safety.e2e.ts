@@ -657,6 +657,8 @@ test.describe('what AI can do (access mode)', () => {
     const popup = await h.ctx.newPage();
     await popup.goto(extUrl('popup.html'));
     const item = (m: string) => popup.locator(`#access [data-mode="${m}"]`);
+    await expect(popup.locator('#access > button')).toContainText('Ask first');
+    await popup.locator('#access > button').click();
     await expect(item('ask')).toHaveAttribute('data-state', 'on');
     await expect(popup.locator('#access-hint')).toContainText('Asks you before');
     await item('read').click();
@@ -666,8 +668,15 @@ test.describe('what AI can do (access mode)', () => {
     expect(refused.text).toMatch(/Read only/);
     await item('full').click();
     await expect(popup.locator('#access-hint')).toContainText('without asking');
-    await setPrefs('vi');
-    await popup.reload();
+    // Language and theme live in header popovers.
+    await popup.locator('#lang-menu').click();
+    await popup.locator('[role=menuitemradio][data-value="vi"]').click();
+    await expect(popup.locator('#access > button')).toContainText('Toàn quyền');
+    await popup.locator('#theme-menu').click();
+    await popup.locator('[role=menuitemradio][data-value="dark"]').click();
+    await expect(popup.locator('html')).toHaveClass(/dark/);
+    expect(await h.sw.evaluate(async () => (await chrome.storage.local.get('prefs')).prefs)).toEqual({ lang: 'vi', theme: 'dark' });
+    await popup.locator('#access > button').click();
     await expect(item('full')).toHaveText('Toàn quyền');
     await expect(item('ask')).toHaveText('Hỏi trước');
     await expect(item('read')).toHaveText('Chỉ xem');

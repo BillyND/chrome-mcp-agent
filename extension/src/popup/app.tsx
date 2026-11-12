@@ -1,51 +1,17 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { getPrefs, isDark, setPrefs, t, type Key, type Prefs } from '../i18n';
-import type { AccessMode, PopupState, RuntimeMessage } from '../messages';
+import { t, type Key } from '../i18n';
+import type { AccessMode, PopupState } from '../messages';
 import { PendingPrompts, SitesSection } from './sites-section';
 import { SecretsSection } from './secrets-section';
-import { Badge, Button, Card, Input, ToggleGroup, ToggleGroupItem, Collapsible } from './ui/components';
+import { Badge, Button, Card, Collapsible, Input, ToggleGroup, ToggleGroupItem } from './ui/components';
+import { Icon } from './ui/icons';
+import { PrefsMenu } from './ui/prefs-menu';
+import { post, send } from './send';
+import { usePrefs } from './use-prefs';
 import { cn } from './ui/utils';
 
 const ACCESS_MODES: AccessMode[] = ['full', 'ask', 'read'];
-
-const send = <T = unknown,>(msg: RuntimeMessage) => chrome.runtime.sendMessage(msg) as Promise<T>;
-
-const Icon = {
-  logo: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 3l7 17 2.5-7L21 10.5z" />
-    </svg>
-  ),
-  copy: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="9" y="9" width="12" height="12" rx="2" />
-      <path d="M5 15V5a2 2 0 0 1 2-2h10" />
-    </svg>
-  ),
-  check: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  ),
-  sun: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <circle cx="12" cy="12" r="4" />
-      <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
-    </svg>
-  ),
-  moon: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
-      <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
-    </svg>
-  ),
-  monitor: (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-      <rect x="2" y="4" width="20" height="13" rx="2" />
-      <path d="M8 21h8M12 17v4" />
-    </svg>
-  ),
-};
 
 const DOT: Record<string, string> = {
   off: 'bg-muted-foreground',
@@ -97,7 +63,7 @@ function localSnippet(port: number, gateway: string): string {
 }
 
 function App() {
-  const [prefs, setPrefsState] = useState<Prefs | null>(null);
+  const prefs = usePrefs();
   const [s, setState] = useState<PopupState | null>(null);
   const [password, setPassword] = useState('');
   // Shown from the moment of the click until the background reports the outcome.
@@ -106,7 +72,6 @@ function App() {
   const refresh = useCallback(async () => setState(await send<PopupState>({ type: 'get-state' })), []);
 
   useEffect(() => {
-    void getPrefs().then(setPrefsState);
     void refresh();
     const onMsg = (m: { type?: string }) => m?.type === 'state-changed' && void refresh();
     chrome.runtime.onMessage.addListener(onMsg);
@@ -118,16 +83,6 @@ function App() {
   }, [refresh]);
 
   useEffect(() => {
-    if (!prefs) return;
-    const apply = () => document.documentElement.classList.toggle('dark', isDark(prefs.theme));
-    apply();
-    document.documentElement.lang = prefs.lang;
-    const mq = matchMedia('(prefers-color-scheme: dark)');
-    mq.addEventListener('change', apply);
-    return () => mq.removeEventListener('change', apply);
-  }, [prefs]);
-
-  useEffect(() => {
     if (!s) return;
     if (pending === 'connect' && (s.code || s.lastError || s.needsPassword)) setPending(null);
     if (pending === 'logout' && !s.code) setPending(null);
@@ -135,7 +90,6 @@ function App() {
 
   if (!prefs || !s) return null;
   const tr = (k: Key) => t(prefs.lang, k);
-  const update = async (next: Partial<Prefs>) => setPrefsState(await setPrefs(next));
 
   const signedIn = !!s.code;
   const active = signedIn || s.local.enabled;
@@ -151,7 +105,7 @@ function App() {
   const busy = pending === 'connect' || (s.status === 'connecting' && !s.code);
   const connect = () => {
     setPending('connect');
-    void send({ type: 'connect', password });
+    post({ type: 'connect', password });
   };
 
   return (
@@ -163,6 +117,7 @@ function App() {
           <i className={cn('size-1.5 rounded-full', DOT[statusKey])} />
           <span id="status-text">{statusText}</span>
         </Badge>
+        <PrefsMenu prefs={prefs} />
       </header>
 
       <PendingPrompts s={s} lang={prefs.lang} />
@@ -218,7 +173,7 @@ function App() {
 
           {error && s.status !== 'connected' && <p className="text-[13px] text-destructive">{error}</p>}
           {s.status === 'replaced' && (
-            <Button id="use-here" className="w-full" onClick={() => void send({ type: 'reconnect' })}>
+            <Button id="use-here" className="w-full" onClick={() => post({ type: 'reconnect' })}>
               {tr('useHere')}
             </Button>
           )}
@@ -231,7 +186,7 @@ function App() {
             aria-busy={pending === 'logout'}
             onClick={() => {
               setPending('logout');
-              void send({ type: 'logout' });
+              post({ type: 'logout' });
             }}
           >
             {pending === 'logout' && <Spinner />}
@@ -240,12 +195,11 @@ function App() {
         </section>
       )}
 
-      <Card id="access" className="flex flex-col gap-2">
-        <div className="text-[13px] font-medium text-muted-foreground">{tr('access')}</div>
+      <Collapsible id="access" title={tr('access')} count={tr(`access_${s.accessMode}`)}>
         <ToggleGroup
           type="single"
           value={s.accessMode}
-          onValueChange={(v) => v && void send({ type: 'set-access-mode', mode: v as AccessMode })}
+          onValueChange={(v) => v && post({ type: 'set-access-mode', mode: v as AccessMode })}
           aria-label={tr('access')}
           className="grid grid-cols-3"
         >
@@ -256,7 +210,7 @@ function App() {
           ))}
         </ToggleGroup>
         <p id="access-hint" className="text-[13px] text-muted-foreground">{tr(`access_${s.accessMode}_hint`)}</p>
-      </Card>
+      </Collapsible>
 
       <Collapsible id="local" title={tr('localMode')}>
         <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
@@ -275,17 +229,8 @@ function App() {
       <SitesSection s={s} lang={prefs.lang} />
       <SecretsSection lang={prefs.lang} />
 
-      <footer className="flex items-center gap-2 pt-0.5">
-        <ToggleGroup type="single" value={prefs.lang} onValueChange={(v) => v && void update({ lang: v as Prefs['lang'] })} aria-label="Language">
-          <ToggleGroupItem value="en">EN</ToggleGroupItem>
-          <ToggleGroupItem value="vi">VI</ToggleGroupItem>
-        </ToggleGroup>
-        <ToggleGroup type="single" value={prefs.theme} onValueChange={(v) => v && void update({ theme: v as Prefs['theme'] })} aria-label="Theme">
-          <ToggleGroupItem value="light" aria-label="Light">{Icon.sun}</ToggleGroupItem>
-          <ToggleGroupItem value="dark" aria-label="Dark">{Icon.moon}</ToggleGroupItem>
-          <ToggleGroupItem value="system" aria-label="System">{Icon.monitor}</ToggleGroupItem>
-        </ToggleGroup>
-        <Button id="open-audit" variant="link" size="sm" className="ml-auto" onClick={() => void send({ type: 'open-audit' })}>
+      <footer className="flex justify-end">
+        <Button id="open-audit" variant="link" size="sm" onClick={() => post({ type: 'open-audit' })}>
           {tr('audit')}
         </Button>
       </footer>

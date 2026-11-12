@@ -1,10 +1,11 @@
 // shadcn/ui components used by the popup (new-york style, trimmed to what it needs).
 
-import * as SwitchPrimitive from '@radix-ui/react-switch';
+import * as PopoverPrimitive from '@radix-ui/react-popover';
 import { Slot } from '@radix-ui/react-slot';
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { useState, type ComponentProps, type ReactNode } from 'react';
+import { Icon } from './icons';
 import { cn } from './utils';
 
 const buttonVariants = cva(
@@ -64,17 +65,60 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
   );
 }
 
-export function Switch({ className, ...props }: ComponentProps<typeof SwitchPrimitive.Root>) {
+
+/** A ghost icon button that opens a small menu of choices, like shadcn's Popover with a command list; the current choice is checked. */
+export function MenuPopover<T extends string>({
+  id,
+  label,
+  trigger,
+  value,
+  options,
+  onSelect,
+}: {
+  id: string;
+  label: string;
+  trigger: ReactNode;
+  value: T;
+  options: { value: T; label: string; icon?: ReactNode }[];
+  onSelect: (value: T) => void;
+}) {
+  const [open, setOpen] = useState(false);
   return (
-    <SwitchPrimitive.Root
-      className={cn(
-        'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-transparent shadow-xs transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=checked]:bg-primary data-[state=unchecked]:bg-input',
-        className,
-      )}
-      {...props}
-    >
-      <SwitchPrimitive.Thumb className="pointer-events-none block size-4 rounded-full bg-background shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0.5" />
-    </SwitchPrimitive.Root>
+    <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
+      <PopoverPrimitive.Trigger asChild>
+        <Button id={id} variant="ghost" size="icon" aria-label={label} title={label}>
+          {trigger}
+        </Button>
+      </PopoverPrimitive.Trigger>
+      <PopoverPrimitive.Portal>
+        <PopoverPrimitive.Content
+          align="end"
+          sideOffset={6}
+          className="z-50 min-w-40 rounded-md border bg-card p-1 text-card-foreground shadow-md outline-none origin-(--radix-popover-content-transform-origin) data-[state=open]:animate-[pop-in_120ms_ease-out]"
+        >
+          <div role="menu" aria-label={label} className="flex flex-col">
+            {options.map((o) => (
+              <button
+                key={o.value}
+                type="button"
+                role="menuitemradio"
+                aria-checked={o.value === value}
+                data-value={o.value}
+                onClick={() => {
+                  onSelect(o.value);
+                  setOpen(false);
+                }}
+                className="flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2 text-left text-[13px] outline-none hover:bg-accent focus-visible:bg-accent [&_svg]:size-4"
+              >
+                {o.icon && <span className="text-muted-foreground">{o.icon}</span>}
+                <span className="flex-1">{o.label}</span>
+                {o.value === value && Icon.check}
+              </button>
+            ))}
+          </div>
+        </PopoverPrimitive.Content>
+      </PopoverPrimitive.Portal>
+    </PopoverPrimitive.Root>
   );
 }
 
@@ -94,8 +138,11 @@ export function ToggleGroupItem({ className, ...props }: ComponentProps<typeof T
   );
 }
 
-/** A collapsible block like shadcn's Collapsible: the whole header row toggles it, a count sits before the chevron. */
-export function Collapsible({ id, title, count, children }: { id: string; title: string; count?: number; children: ReactNode }) {
+/**
+ * A collapsible block like shadcn's Collapsible: the whole header row toggles it, a count or short value sits before the chevron.
+ * The body stays mounted and slides open by animating its grid row; while closed it is inert, so nothing inside takes focus.
+ */
+export function Collapsible({ id, title, count, children }: { id: string; title: string; count?: ReactNode; children: ReactNode }) {
   const [open, setOpen] = useState(false);
   return (
     <div id={id} className="rounded-lg border bg-card text-card-foreground">
@@ -107,11 +154,16 @@ export function Collapsible({ id, title, count, children }: { id: string; title:
       >
         <span className="flex-1">{title}</span>
         {count !== undefined && <span className="text-[13px] font-normal text-muted-foreground">{count}</span>}
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={cn('size-4 shrink-0 text-muted-foreground transition-transform', open && 'rotate-180')} aria-hidden="true">
-          <path d="m6 9 6 6 6-6" />
-        </svg>
+        <span className={cn('shrink-0 text-muted-foreground transition-transform duration-200 [&_svg]:size-4', open && 'rotate-180')}>{Icon.chevronDown}</span>
       </button>
-      {open && <div className="flex flex-col gap-2 border-t p-3">{children}</div>}
+      <div
+        className={cn('grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none', open ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0')}
+        inert={!open}
+      >
+        <div className="min-h-0 overflow-hidden">
+          <div className="flex flex-col gap-2 border-t p-3">{children}</div>
+        </div>
+      </div>
     </div>
   );
 }

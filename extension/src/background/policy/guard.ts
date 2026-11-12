@@ -8,7 +8,7 @@ import type { ToolContent } from '../../../../shared/protocol';
 import type { Choice, ElementFacts, PageGates } from '../../messages';
 import { sessionOf } from '../cdp';
 import { callAllFrames, frameCall, parseRef } from '../frames';
-import { STOPPED, ToolError, TrustedError, type ToolCtx } from '../tools/types';
+import { STOPPED, TrustedError, type ToolCtx } from '../tools/types';
 import { ask } from './approvals';
 import { checkAccountCreation, checkTyping, checkUpload } from './hard-blocks';
 import { factsAtPoint } from './point-facts';

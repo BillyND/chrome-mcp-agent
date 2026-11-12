@@ -57,11 +57,17 @@ for (const theme of ['light', 'dark']) {
       await popup.waitForTimeout(600);
     }
     await save(popup.locator('body > #root'), 'Popup', `Đã kết nối · ${lang.toUpperCase()} · ${theme}`, `popup-in-${lang}-${theme}.png`, 400);
-    for (const sel of ['#local', '#sites', '#secrets']) {
+    for (const sel of ['#access', '#local', '#sites', '#secrets']) {
       const header = popup.locator(`${sel} button`).first();
       if (await header.count()) await header.click();
     }
     await popup.waitForTimeout(300);
+    for (const menu of ['lang', 'theme']) {
+      await popup.locator(`#${menu}-menu`).click();
+      await popup.waitForTimeout(250);
+      await save(popup, 'Popup', `Menu ${menu === 'lang' ? 'ngôn ngữ' : 'giao diện'} · ${lang.toUpperCase()} · ${theme}`, `popup-${menu}-${lang}-${theme}.png`, 400);
+      await popup.keyboard.press('Escape');
+    }
     await save(popup.locator('body > #root'), 'Popup', `Mở các mục · ${lang.toUpperCase()} · ${theme}`, `popup-open-${lang}-${theme}.png`, 400);
   }
 }

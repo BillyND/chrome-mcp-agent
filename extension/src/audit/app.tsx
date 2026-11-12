@@ -4,9 +4,11 @@
 import { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { t, type Key } from '../i18n';
-import type { ActivityEntry, RuntimeMessage } from '../messages';
+import type { ActivityEntry } from '../messages';
 import { Badge, Button } from '../popup/ui/components';
 import { cn } from '../popup/ui/utils';
+import { post } from '../popup/send';
+import { PrefsMenu } from '../popup/ui/prefs-menu';
 import { usePrefs } from '../popup/use-prefs';
 
 const outcomeOf = (e: ActivityEntry) => e.outcome ?? (e.ok ? 'ok' : 'error');
@@ -42,7 +44,7 @@ function App() {
   if (!prefs) return null;
   const tr = (k: Key) => t(prefs.lang, k);
   const clear = () => {
-    if (confirm(`${tr('audit_clear')}?`)) void chrome.runtime.sendMessage({ type: 'clear-log' } satisfies RuntimeMessage);
+    if (confirm(`${tr('audit_clear')}?`)) post({ type: 'clear-log' });
   };
 
   return (
@@ -59,6 +61,7 @@ function App() {
         <Button id="clear" variant="destructive" size="sm" disabled={!log.length} onClick={clear}>
           {tr('audit_clear')}
         </Button>
+        <PrefsMenu prefs={prefs} />
       </header>
 
       <div className="overflow-x-auto rounded-lg border">
