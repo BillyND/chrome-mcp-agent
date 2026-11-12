@@ -56,6 +56,15 @@ const DOT: Record<string, string> = {
   'signed-out': 'bg-muted-foreground',
 };
 
+function Spinner() {
+  return (
+    <svg className="size-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeOpacity=".25" strokeWidth="3" />
+      <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function CopyButton({ value, label }: { value: string; label: string }) {
   const [done, setDone] = useState(false);
   return (
@@ -89,6 +98,8 @@ function App() {
   const [prefs, setPrefsState] = useState<Prefs | null>(null);
   const [s, setState] = useState<PopupState | null>(null);
   const [password, setPassword] = useState('');
+  // Shown from the moment of the click until the background reports the outcome.
+  const [pending, setPending] = useState<'connect' | 'logout' | null>(null);
 
   const refresh = useCallback(async () => setState(await send<PopupState>({ type: 'get-state' })), []);
 
@@ -114,6 +125,12 @@ function App() {
     return () => mq.removeEventListener('change', apply);
   }, [prefs]);
 
+  useEffect(() => {
+    if (!s) return;
+    if (pending === 'connect' && (s.code || s.lastError || s.needsPassword)) setPending(null);
+    if (pending === 'logout' && !s.code) setPending(null);
+  }, [s, pending]);
+
   if (!prefs || !s) return null;
   const tr = (k: Key) => t(prefs.lang, k);
   const update = async (next: Partial<Prefs>) => setPrefsState(await setPrefs(next));
@@ -129,7 +146,11 @@ function App() {
   const snippet = localSnippet(s.local.port, s.gateway);
   const error = s.lastError ? tr(`err_${s.lastError}` as Key) : '';
   const mcpUrl = `${s.gateway}/mcp`;
-  const busy = s.status === 'connecting';
+  const busy = pending === 'connect' || (s.status === 'connecting' && !s.code);
+  const connect = () => {
+    setPending('connect');
+    void send({ type: 'connect', password });
+  };
 
   return (
     <div className="flex flex-col gap-3 p-3.5">
@@ -156,11 +177,12 @@ function App() {
                 value={password}
                 autoFocus
                 onChange={(e) => setPassword(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && void send({ type: 'connect', password })}
+                onKeyDown={(e) => e.key === 'Enter' && connect()}
               />
             </label>
           )}
-          <Button id="login" className="w-full" disabled={busy} onClick={() => void send({ type: 'connect', password })}>
+          <Button id="login" className="w-full" disabled={busy} aria-busy={busy} onClick={connect}>
+            {busy && <Spinner />}
             {busy ? tr('connecting') : tr('connect')}
           </Button>
           {error && <p className="text-[13px] text-destructive">{error}</p>}
@@ -255,8 +277,19 @@ function App() {
           {tr('audit')}
         </Button>
         {signedIn && (
-          <Button id="logout" variant="link" size="sm" onClick={() => void send({ type: 'logout' })}>
-            {tr('disconnect')}
+          <Button
+            id="logout"
+            variant="link"
+            size="sm"
+            disabled={pending === 'logout'}
+            aria-busy={pending === 'logout'}
+            onClick={() => {
+              setPending('logout');
+              void send({ type: 'logout' });
+            }}
+          >
+            {pending === 'logout' && <Spinner />}
+            {pending === 'logout' ? tr('disconnecting') : tr('disconnect')}
           </Button>
         )}
       </footer>
