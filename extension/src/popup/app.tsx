@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { getPrefs, isDark, setPrefs, t, type Key, type Prefs } from '../i18n';
-import type { PopupState, RuntimeMessage } from '../messages';
+import type { AccessMode, PopupState, RuntimeMessage } from '../messages';
 import { PendingPrompts, SitesSection } from './sites-section';
 import { SecretsSection } from './secrets-section';
 import { Badge, Button, Card, Input, ToggleGroup, ToggleGroupItem, Collapsible } from './ui/components';
 import { cn } from './ui/utils';
+
+const ACCESS_MODES: AccessMode[] = ['full', 'ask', 'read'];
 
 const send = <T = unknown,>(msg: RuntimeMessage) => chrome.runtime.sendMessage(msg) as Promise<T>;
 
@@ -238,6 +240,23 @@ function App() {
         </section>
       )}
 
+      <Card id="access" className="flex flex-col gap-2">
+        <div className="text-[13px] font-medium text-muted-foreground">{tr('access')}</div>
+        <ToggleGroup
+          type="single"
+          value={s.accessMode}
+          onValueChange={(v) => v && void send({ type: 'set-access-mode', mode: v as AccessMode })}
+          aria-label={tr('access')}
+          className="grid grid-cols-3"
+        >
+          {ACCESS_MODES.map((m) => (
+            <ToggleGroupItem key={m} value={m} data-mode={m} className={cn('h-8 text-[13px]', m === 'full' && 'data-[state=on]:text-destructive')}>
+              {tr(`access_${m}`)}
+            </ToggleGroupItem>
+          ))}
+        </ToggleGroup>
+        <p id="access-hint" className="text-[13px] text-muted-foreground">{tr(`access_${s.accessMode}_hint`)}</p>
+      </Card>
 
       <Collapsible id="local" title={tr('localMode')}>
         <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-[13px] text-muted-foreground">

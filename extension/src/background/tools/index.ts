@@ -7,6 +7,8 @@
 import type { ToolContent } from '../../../../shared/protocol';
 import { finish, failureText, seal, siteGate } from '../policy/guard';
 import { targetUrlsOf } from '../policy/site-rules';
+import { getSettings } from '../policy/store';
+import { TOOL_BY_NAME } from '../../../../shared/tools';
 import type { ActivityEntry } from '../../messages';
 import { protectContent } from '../output/protect';
 import { outputTools } from '../output/tools';
@@ -32,7 +34,7 @@ import { selectionTools } from './selection';
 import { snapshotTools } from './snapshot';
 import { tabsTools } from './tabs';
 import { resolveTab } from './tab';
-import { justStopped, PAUSED, STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
+import { justStopped, PAUSED, READ_ONLY, STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
 import { waitTools } from './wait';
 
 export { hideAgentBar, showAgentBar } from './overlay';
@@ -75,6 +77,10 @@ export interface ToolResult {
 const failure = (message: string, audit: ToolResult['audit'] = {}): Executed => ({ content: text(message), isError: true, audit: { outcome: 'error', ...audit }, seal: false, notes: [] });
 
 /** Runs a tool call and applies what every result gets on the way out: secrets hidden, output budget enforced. */
+/** Tools that only move around and look: allowed in "Read only" besides the catalog's read-only tools. */
+const BROWSE_TOOLS = new Set(['browser_tabs', 'browser_navigate', 'browser_scroll', 'browser_hover', 'browser_wait_for', 'browser_windows', 'browser_request_user', 'browser_secrets_list']);
+const readableTool = (name: string): boolean => TOOL_BY_NAME.get(name)?.readOnly === true || BROWSE_TOOLS.has(name);
+
 export async function runTool(
   name: string,
   args: Record<string, unknown>,
@@ -103,6 +109,7 @@ async function execute(
   if (justStopped()) return failure(STOPPED);
   const spec = TOOLS[name];
   if (!spec) return failure(`Unknown tool ${name}.`);
+  if (!readableTool(name) && (await getSettings()).accessMode === 'read') return failure(READ_ONLY(name));
 
   // Pressing Stop drops every call still waiting its turn; the running ones notice at their next step.
   const signal = state.abort.signal;

@@ -1,7 +1,7 @@
 // Persistent policy state: the user's site rules and tuning in chrome.storage.local, and the
 // short-lived answers to "Allow <agent> on <host>?" in chrome.storage.session.
 
-import type { SiteAction, SitesView } from '../../messages';
+import type { AccessMode, SiteAction, SitesView } from '../../messages';
 import type { SiteRules } from './site-rules';
 
 const RULES_KEY = 'siteRules';
@@ -17,6 +17,8 @@ export interface PolicySettings {
   grantMs: number;
   /** How long a declined host stays declined for that agent, so it cannot nag the user in a loop. */
   denyMs: number;
+  /** What the AI may do: everything without asking, ask before sensitive actions, or only open and read pages. */
+  accessMode: AccessMode;
 }
 
 export const DEFAULT_SETTINGS: PolicySettings = {
@@ -24,6 +26,7 @@ export const DEFAULT_SETTINGS: PolicySettings = {
   handbackTimeoutMs: 600_000,
   grantMs: 30 * 60_000,
   denyMs: 60_000,
+  accessMode: 'ask',
 };
 
 export async function getSettings(): Promise<PolicySettings> {
@@ -50,6 +53,11 @@ export const setRule = (host: string, action: SiteAction | null): Promise<void> 
     if (action) rules[host] = action;
     else delete rules[host];
     await chrome.storage.local.set({ [RULES_KEY]: rules });
+  });
+
+export const setAccessMode = (mode: AccessMode): Promise<void> =>
+  serial(async () => {
+    await chrome.storage.local.set({ [SETTINGS_KEY]: { ...(await getSettings()), accessMode: mode } });
   });
 
 /** The user's site rules, for the popup. */

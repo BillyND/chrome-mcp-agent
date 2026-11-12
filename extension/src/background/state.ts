@@ -104,7 +104,7 @@ export function clearActivity(): Promise<void> {
   return logWrite;
 }
 
-export async function popupState(): Promise<Omit<PopupState, 'sites' | 'pending'>> {
+export async function popupState(): Promise<Omit<PopupState, 'sites' | 'pending' | 'accessMode'>> {
   await Promise.all([pausedLoaded, localLoaded]);
   const [account, { log }] = await Promise.all([getAccount(), chrome.storage.local.get('log')]);
   return {

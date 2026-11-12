@@ -112,6 +112,7 @@ async function hostOfTab(tabId: number): Promise<string> {
 async function confirm(ctx: ToolCtx, tabId: number, verdict: Verdict): Promise<void> {
   if (verdict.level === 'allow') return;
   const settings = await getSettings();
+  if (settings.accessMode === 'full') return;
   const host = await hostOfTab(tabId);
   const choice = await ask({ tabId, kind: 'sensitive', agent: ctx.agent, host, label: verdict.label, category: verdict.category }, ctx.signal, settings.approvalTimeoutMs);
   if (choice !== 'approve') declined(ctx, choice, `this action (${verdict.category}: "${verdict.label}")`, settings.approvalTimeoutMs);
@@ -169,6 +170,7 @@ export async function guardKey(ctx: ToolCtx, tabId: number, combo: string): Prom
 export async function guardDownload(ctx: ToolCtx, url: string): Promise<void> {
   const label = url.length > 80 ? `${url.slice(0, 77)}…` : url;
   const settings = await getSettings();
+  if (settings.accessMode === 'full') return;
   const tabId = await questionTab(ctx);
   const choice = await ask({ tabId, kind: 'sensitive', agent: ctx.agent, host: hostOf(url), label, category: 'download' }, ctx.signal, settings.approvalTimeoutMs);
   if (choice !== 'approve') declined(ctx, choice, `this download (${label})`, settings.approvalTimeoutMs);

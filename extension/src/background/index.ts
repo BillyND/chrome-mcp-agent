@@ -8,7 +8,7 @@ import type { ToolContent } from '../../../shared/protocol';
 import { answer, pendingPrompts } from './policy/approvals';
 import { OPEN_TAG } from './policy/untrusted';
 import { normalizeRuleHost } from './policy/site-rules';
-import { setRule, sitesView } from './policy/store';
+import { getSettings, setAccessMode, setRule, sitesView } from './policy/store';
 import { GATEWAY_URL, clearActivity, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setPaused, setStatus, state } from './state';
 import { agentLabel, DEFAULT_AGENT } from './tools/agent-id';
 import { hideAgentBar, runTool, showAgentBar } from './tools';
@@ -111,11 +111,14 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       handleFrameIdentified(msg);
       return false;
     case 'get-state':
-      void Promise.all([popupState(), sitesView()]).then(([s, sites]) => sendResponse({ ...s, sites, pending: pendingPrompts() }));
+      void Promise.all([popupState(), sitesView(), getSettings()]).then(([s, sites, settings]) => sendResponse({ ...s, sites, accessMode: settings.accessMode, pending: pendingPrompts() }));
       return true;
     case 'approval-decision':
       // Page prompts and the popup answer through here; the page script runs in an isolated world, so a web page cannot.
       answer(msg.id, msg.choice);
+      return false;
+    case 'set-access-mode':
+      if (['full', 'ask', 'read'].includes(msg.mode)) void setAccessMode(msg.mode).then(notify);
       return false;
     case 'set-site-rule': {
       const host = normalizeRuleHost(msg.host);

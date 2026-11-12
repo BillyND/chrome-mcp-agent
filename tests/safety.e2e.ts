@@ -622,6 +622,59 @@ const boxOf = async (loc: Locator): Promise<Box> => {
 const centerOf = (b: Box) => ({ x: Math.round(b.x + b.width / 2), y: Math.round(b.y + b.height / 2) });
 const imageOf = (r: { content: Array<{ type: string; data?: string }> }) => r.content.find((c) => c.type === 'image')!.data!;
 
+test.describe('what AI can do (access mode)', () => {
+  const mode = (m: string) => setSettings({ accessMode: m } as never);
+
+  test('Full access runs sensitive clicks and scripts without asking', async () => {
+    await mode('full');
+    const snap = await open('/danger.html');
+    const r = await call('browser_click', { ref: refOf(snap.text, 'Xoá tài khoản', 'button') });
+    expect(r.isError, r.text).toBeFalsy();
+    expect(await pageText()).toContain('Đã xoá');
+    await noPrompt();
+    const script = await call('browser_evaluate', { script: 'return 1' });
+    expect(script.isError, script.text).toBeFalsy();
+  });
+
+  test('Read only lets the AI open and read pages but refuses anything that acts', async () => {
+    await mode('read');
+    const snap = await open('/danger.html');
+    expect(snap.isError, snap.text).toBeFalsy();
+    for (const tool of ['browser_get_text', 'browser_screenshot', 'browser_find']) {
+      const r = await call(tool, tool === 'browser_find' ? { text: 'Xoá' } : {});
+      expect(r.isError, `${tool}: ${r.text}`).toBeFalsy();
+    }
+    for (const [tool, args] of [['browser_click', { ref: refOf(snap.text, 'Xoá tài khoản', 'button') }], ['browser_type', { text: 'x' }], ['browser_evaluate', { script: 'return 1' }], ['browser_press_key', { key: 'Enter' }]] as const) {
+      const r = await call(tool, args);
+      expect(r.isError, tool).toBe(true);
+      expect(r.text).toMatch(/set to "Read only"/);
+    }
+    expect(await pageText()).not.toContain('Đã xoá');
+    await noPrompt();
+  });
+
+  test('the popup switches between the three modes and explains each one', async () => {
+    const popup = await h.ctx.newPage();
+    await popup.goto(extUrl('popup.html'));
+    const item = (m: string) => popup.locator(`#access [data-mode="${m}"]`);
+    await expect(item('ask')).toHaveAttribute('data-state', 'on');
+    await expect(popup.locator('#access-hint')).toContainText('Asks you before');
+    await item('read').click();
+    await expect(item('read')).toHaveAttribute('data-state', 'on');
+    await expect(popup.locator('#access-hint')).toContainText('Only opens and reads');
+    const refused = await call('browser_evaluate', { script: 'return 1' });
+    expect(refused.text).toMatch(/Read only/);
+    await item('full').click();
+    await expect(popup.locator('#access-hint')).toContainText('without asking');
+    await setPrefs('vi');
+    await popup.reload();
+    await expect(item('full')).toHaveText('Toàn quyền');
+    await expect(item('ask')).toHaveText('Hỏi trước');
+    await expect(item('read')).toHaveText('Chỉ xem');
+    await popup.close();
+  });
+});
+
 test.describe('running page scripts', () => {
   let tab: Page;
   test.beforeEach(async () => {

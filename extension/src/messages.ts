@@ -87,6 +87,9 @@ export interface PageGates {
   captcha: boolean;
 }
 
+/** `full`: no confirmations; `ask`: confirm sensitive actions; `read`: open and read pages only. */
+export type AccessMode = 'full' | 'ask' | 'read';
+
 export type PromptKind = 'site' | 'sensitive' | 'handback';
 /** Answers to an on-page prompt. */
 export type Choice = 'once' | 'always' | 'approve' | 'done' | 'decline';
@@ -135,6 +138,7 @@ export type RuntimeMessage =
   | { type: 'get-state' }
   | { type: 'approval-decision'; id: string; choice: Choice }
   | { type: 'set-site-rule'; host: string; action: SiteAction | null }
+  | { type: 'set-access-mode'; mode: AccessMode }
   | { type: 'clear-log' }
   | { type: 'open-audit' };
 
@@ -169,6 +173,7 @@ export interface PopupState {
   local: { enabled: boolean; status: ConnectionStatus; port: number };
   /** The user's site rules and the built-in blocks, for the "Sites" section. */
   sites: SitesView;
+  accessMode: AccessMode;
   /** Confirmations waiting for the user (the popup answers them when the page can't show one). */
   pending: PromptSpec[];
 }

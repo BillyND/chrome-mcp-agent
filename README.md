@@ -70,8 +70,9 @@ How it works:
 
 Everything is enforced in the extension, so it applies to every MCP client.
 
+- **What AI can do:** pick *Full access* (no confirmations), *Ask first* (default: confirm sensitive actions) or *Read only* (open, read and capture pages; nothing that acts).
 - **Site rules:** allow, ask or block per site. No site is blocked by default; block any site yourself.
-- **On-page confirmation** before sending, deleting, paying, downloading or entering passwords. Page scripts (`browser_evaluate`) run on every site you haven't blocked, without asking. Only a real click can approve; the agent cannot press the button itself.
+- **On-page confirmation** (Ask first) before sending, deleting, paying, downloading or entering passwords. Page scripts (`browser_evaluate`) run on every site you haven't blocked, without asking. Only a real click can approve; the agent cannot press the button itself.
 - **Hard blocks:** card numbers, ID numbers, account creation and credential files.
 - **Prompt-injection hardening:** page content is wrapped as untrusted and hidden text is stripped.
 - **Secrets stay hidden:** values are redacted from every result, and screenshots and PDFs are masked.
