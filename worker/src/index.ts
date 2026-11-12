@@ -3,7 +3,7 @@ import { AUTH_PROTOCOL_PREFIX, PROTOCOL } from '../../shared/protocol';
 import { signDeviceToken, verifyDeviceToken } from './device-token';
 import type { AuthProps, Env } from './env';
 import { handleMcp } from './mcp-server';
-import { consentPage, escapeHtml, landingPage, messagePage, privacyPage } from './pages';
+import { consentPage, demoPage, escapeHtml, landingPage, messagePage, privacyPage } from './pages';
 import { deviceForCode, forgetDevice, isActiveDevice, passwordRequired, registerDevice } from './pairing';
 
 export { DeviceHub } from './device-hub';
@@ -109,6 +109,8 @@ const defaultHandler: ExportedHandler<Env> = {
           return html(landingPage(env.PUBLIC_URL));
         case '/privacy':
           return html(privacyPage());
+        case '/demo':
+          return html(demoPage());
         case '/health':
           return Response.json({ ok: true });
         case '/authorize':

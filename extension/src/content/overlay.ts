@@ -7,7 +7,7 @@
 // Everything lives in a closed shadow root with pointer-events: none (except
 // the bar's buttons) so it never changes what the page receives.
 
-import { getPrefs, isDark, t, type Prefs } from '../i18n';
+import { getPrefs, isDark, onPrefsChange, t, type Prefs } from '../i18n';
 import type { Choice, OverlayAction, PromptSpec, RuntimeMessage } from '../messages';
 import { choiceLabel, isPrimary, promptCopy } from '../prompt-copy';
 
@@ -54,6 +54,9 @@ button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 const CURSOR_PATH = 'M6 4.5 L24.5 13.2 Q25.6 13.8 24.4 14.3 L16.4 16.6 Q15.6 16.9 15.3 17.7 L12.6 25.3 Q12.2 26.4 11.6 25.3 Z';
 const CURSOR_SVG = `<svg width="24" height="24" viewBox="0 0 34 34"><defs><linearGradient id="hm-gloss" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fff" stop-opacity=".22"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></linearGradient></defs><path d="${CURSOR_PATH}" fill="#fff" stroke="#fff" stroke-width="7.6" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="#18181b" stroke="#18181b" stroke-width="3.2" stroke-linejoin="round"/><path d="${CURSOR_PATH}" fill="url(#hm-gloss)"/></svg>`;
 
+/** Messages to the extension. The gateway's live demo page runs this overlay without one, so they are dropped there. */
+const toBackground = (msg: RuntimeMessage) => void globalThis.chrome?.runtime?.sendMessage?.(msg)?.catch(() => {});
+
 let host: HTMLElement | null = null;
 let parts: { layer: HTMLElement; cursor: HTMLElement; arrow: SVGElement; bar: HTMLElement; txt: HTMLElement; btn: HTMLButtonElement; prompts: HTMLElement } | null = null;
 let pos: { x: number; y: number } | null = null;
@@ -75,7 +78,7 @@ function ensure() {
   parts.btn.addEventListener('click', (e) => {
     e.stopPropagation();
     hideAll();
-    chrome.runtime.sendMessage({ type: 'stop' }).catch(() => {});
+    toBackground({ type: 'stop' });
   });
   (document.documentElement ?? document.body).appendChild(host);
   return parts;
@@ -98,9 +101,7 @@ function applyPrefs() {
 }
 
 // The user can switch language or theme in the popup while a page is open.
-chrome.storage.onChanged.addListener((changes) => {
-  if (changes.prefs) void loadPrefs();
-});
+onPrefsChange(() => void loadPrefs());
 
 function renderBar() {
   // Stopped means gone: no cursor, no bar. The popup switch turns the agent back on.
@@ -261,7 +262,7 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
       if (!e.isTrusted) return;
       e.stopPropagation();
       const msg: RuntimeMessage = { type: 'approval-decision', id: spec.id, choice };
-      chrome.runtime.sendMessage(msg).catch(() => {});
+      toBackground(msg);
       endPrompt(spec.id);
     });
     row.append(b);

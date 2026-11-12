@@ -60,6 +60,7 @@ code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--mu
 .notice{border:1px solid var(--warning);color:var(--warning);padding:10px 14px;border-radius:var(--radius);font-size:14px;margin:12px 0}
 .field{display:flex;flex-direction:column;gap:6px;margin-top:20px;font-size:14px}
 .field input{font:600 20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;height:48px;padding:0 14px;border-radius:var(--radius);border:1px solid var(--input);background:transparent;color:var(--foreground);width:100%}
+#demo-name,#demo-email{font:400 15px/1.2 ui-sans-serif,system-ui,sans-serif;letter-spacing:0;text-transform:none;height:40px}
 .error{color:var(--destructive);font-weight:500;margin:12px 0 0;font-size:14px}
 .big{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--secondary);margin-bottom:12px;font-size:20px}
 .prose h2{margin:28px 0 8px}.prose p,.prose ul{margin:0 0 12px}.prose ul{padding-left:20px;list-style:disc}.prose li{margin:4px 0}
@@ -204,9 +205,25 @@ ${footer}`,
   );
 }
 
+/** A live demo: the extension's real cursor, agent bar and confirmation card driven over a sample form. */
+export function demoPage(): string {
+  return layout(
+    'Helmsman – Demo',
+    `<section class="hero"><h1 id="demo-title">${bi('Xem thử con trỏ', 'Try the cursor')}</h1>
+<p class="muted">${bi('Đây đúng là con trỏ, thanh Dừng và hộp xác nhận mà AI dùng trong Chrome của bạn. Bấm <b>Chạy thử</b> để xem một lượt điền form; bấm <b>Dừng</b> trên thanh để ngắt giữa chừng.', 'This is the same cursor, Stop bar and confirmation card the AI uses in your Chrome. Press <b>Run demo</b> to watch it fill a form; press <b>Stop</b> on the bar to interrupt.')}</p>
+<button type="button" class="btn" id="demo-run">${bi('Chạy thử', 'Run demo')}</button></section>
+<div class="card"><h2>${bi('Liên hệ', 'Contact us')}</h2>
+<label class="field"><b>${bi('Họ tên', 'Name')}</b><input id="demo-name" autocomplete="off"></label>
+<label class="field"><b>Email</b><input id="demo-email" autocomplete="off"></label>
+<div class="row"><button type="button" class="btn" id="demo-send">${bi('Gửi', 'Send')}</button><span id="demo-result" class="muted" style="align-self:center"></span></div></div>
+<script src="/demo.js" defer></script>
+${footer}`,
+  );
+}
+
 export const REPO_URL = 'https://github.com/BillyND/chrome-mcp-agent';
 
-const footer = `<footer><a href="/privacy">${bi('Chính sách quyền riêng tư', 'Privacy policy')}</a><a href="${REPO_URL}">GitHub</a></footer>`;
+const footer = `<footer><a href="/demo">${bi('Xem demo', 'Demo')}</a><a href="/privacy">${bi('Chính sách quyền riêng tư', 'Privacy policy')}</a><a href="${REPO_URL}">GitHub</a></footer>`;
 
 /** Privacy policy for the Chrome Web Store listing: same layout, EN and VI toggled like the landing. */
 export function privacyPage(): string {

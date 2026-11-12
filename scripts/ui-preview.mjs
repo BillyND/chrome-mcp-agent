@@ -188,6 +188,7 @@ h2{font-size:18px;margin:28px 0 12px}.grid{display:flex;flex-wrap:wrap;gap:16px;
 figure{margin:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;max-width:100%}
 figure img,figure video{display:block;max-width:100%;height:auto;border-radius:8px}figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 </style></head><body><main><h1>Helmsman — xem trước giao diện</h1><p class="sub">Chụp từ bản đang chạy (${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' })}).</p>
+<p class="sub"><a href="/demo" style="color:inherit;font-weight:600">▶ Xem con trỏ chạy thật (demo HTML)</a></p>
 <nav>${groups.map((g) => `<a href="#${encodeURIComponent(g)}">${esc(g)}</a>`).join('')}</nav>
 ${groups.map((g) => `<h2 id="${encodeURIComponent(g)}">${esc(g)}</h2><div class="grid">${shots.filter((s) => s.group === g).map((s) => `<figure style="width:${Math.min(s.width, 1100) / (s.width > 600 ? 1 : 1)}px">${s.video ? `<video src="${s.file}" autoplay loop muted playsinline controls></video>` : `<img loading="lazy" src="${s.file}" alt="${esc(s.title)}">`}<figcaption>${esc(s.title)}</figcaption></figure>`).join('')}</div>`).join('')}
 </main></body></html>`;

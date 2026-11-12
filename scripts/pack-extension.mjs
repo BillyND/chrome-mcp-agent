@@ -65,15 +65,17 @@ tailwind(path.join(ext, 'src/popup/styles.css'), path.join(out, 'popup.css'));
 // The gateway's web pages load the same theme and header controls as /ui.css and /ui.js.
 const assets = path.join(root, 'worker', 'public');
 fs.mkdirSync(assets, { recursive: true });
-await esbuild.build({
-  ...common,
-  entryPoints: [path.join(ext, 'src/web/index.tsx')],
-  outfile: path.join(assets, 'ui.js'),
-  format: 'iife',
-  jsx: 'automatic',
-  sourcemap: false,
-  define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
-});
+for (const [entry, file] of [['web/index.tsx', 'ui.js'], ['web/cursor-demo.ts', 'demo.js']]) {
+  await esbuild.build({
+    ...common,
+    entryPoints: [path.join(ext, 'src', entry)],
+    outfile: path.join(assets, file),
+    format: 'iife',
+    jsx: 'automatic',
+    sourcemap: false,
+    define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
+  });
+}
 tailwind(path.join(ext, 'src/web/styles.css'), path.join(assets, 'ui.css'));
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8'));

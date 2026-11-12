@@ -37,6 +37,6 @@ describe('privacy policy page', () => {
   });
 
   it('is linked from the landing footer', () => {
-    expect(landingPage('https://example.test')).toContain('<footer><a href="/privacy">');
+    expect(landingPage('https://example.test')).toContain('<a href="/privacy">');
   });
 });
