@@ -117,7 +117,7 @@ img{max-height:${maxHeight}px;max-width:1120px;border-radius:14px;box-shadow:0 2
   if (!prompt) throw new Error('confirmation prompt did not appear');
   await sleep(500);
   await framed('2-confirmation-prompt.png', 'Sensitive actions always ask you', 'Submit, pay, delete, post and download need your approval on the page', await shopPage.screenshot({ type: 'png' }), { maxHeight: 610 });
-  await answerPrompt(ctx, sw, /Decline|Approve/).catch(() => {});
+  await answerPrompt(ctx, sw, /Don.t allow|Approve/).catch(() => {});
   await pending.catch(() => {});
 
   // 1 and 4. popup states.

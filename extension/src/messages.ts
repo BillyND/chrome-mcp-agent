@@ -89,13 +89,14 @@ export interface PageGates {
 
 export type PromptKind = 'site' | 'script' | 'sensitive' | 'handback';
 /** Answers to an on-page prompt. */
-export type Choice = 'once' | 'always' | 'approve' | 'done' | 'decline';
+/** `all`: allow page scripts on every site (script prompts only). */
+export type Choice = 'once' | 'always' | 'all' | 'approve' | 'done' | 'decline';
 
 /** An on-page confirmation the user answers with a click. */
 export interface PromptSpec {
   id: string;
   kind: PromptKind;
-  /** Short agent label ("Claude Code"). */
+  /** The agent's id; prompt-copy turns it into a readable name. */
   agent: string;
   host: string;
   /** sensitive: the element's label; handback: the reason the agent gave. */
@@ -132,6 +133,7 @@ export type RuntimeMessage =
   | { type: 'get-state' }
   | { type: 'approval-decision'; id: string; choice: Choice }
   | { type: 'set-site-rule'; host: string; action: SiteAction | null }
+  | { type: 'set-scripts-everywhere'; enabled: boolean }
   | { type: 'clear-log' }
   | { type: 'open-audit' };
 
@@ -166,6 +168,8 @@ export interface PopupState {
   local: { enabled: boolean; status: ConnectionStatus; port: number };
   /** The user's site rules and the built-in blocks, for the "Sites" section. */
   sites: SitesView;
+  /** Page scripts run without asking on every site that is not blocked. */
+  scriptsEverywhere: boolean;
   /** Confirmations waiting for the user (the popup answers them when the page can't show one). */
   pending: PromptSpec[];
 }

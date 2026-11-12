@@ -2,14 +2,13 @@
 // them), the site rules list, and the link to the audit log.
 
 import { useState } from 'react';
-import { t, tf, type Key, type Lang } from '../i18n';
-import type { Choice, PopupState, RuntimeMessage, SiteAction } from '../messages';
-import { Button, Card, Input } from './ui/components';
+import { t, type Key, type Lang } from '../i18n';
+import type { PopupState, RuntimeMessage, SiteAction } from '../messages';
+import { choiceLabel, isLink, isPrimary, promptCopy } from '../prompt-copy';
+import { Button, Card, Input, Switch } from './ui/components';
 import { cn } from './ui/utils';
 
 const send = (msg: RuntimeMessage) => chrome.runtime.sendMessage(msg).catch(() => {});
-
-const PRIMARY = new Set<Choice>(['once', 'approve', 'done']);
 
 /** Questions the page prompt could not show (chrome:// pages, closed tabs) are answered here. */
 export function PendingPrompts({ s, lang }: { s: PopupState; lang: Lang }) {
@@ -17,18 +16,24 @@ export function PendingPrompts({ s, lang }: { s: PopupState; lang: Lang }) {
   return (
     <section id="pending" className="flex flex-col gap-2">
       {s.pending.map((p) => {
-        const params = { agent: p.agent, host: p.host, label: p.label, reason: p.label, category: t(lang, `cat_${p.category}` as Key) };
+        const { title, detail } = promptCopy(lang, p);
+        const answer = (choice: (typeof p.choices)[number]) => void send({ type: 'approval-decision', id: p.id, choice });
         return (
           <Card key={p.id} className="flex flex-col gap-2 border-warning/60">
-            <div className="text-[13px] font-semibold">{tf(lang, `prompt_${p.kind}` as Key, params)}</div>
-            <div className="text-xs text-muted-foreground">{tf(lang, `prompt_${p.kind}_detail` as Key, params)}</div>
+            <div className="text-[13px] font-semibold">{title}</div>
+            <div className="text-xs text-muted-foreground">{detail}</div>
             <div className="flex flex-wrap justify-end gap-2">
-              {p.choices.map((c) => (
-                <Button key={c} size="sm" variant={PRIMARY.has(c) ? 'default' : 'outline'} onClick={() => void send({ type: 'approval-decision', id: p.id, choice: c })}>
-                  {t(lang, `choice_${c}` as Key)}
+              {p.choices.filter((c) => !isLink(c)).map((c) => (
+                <Button key={c} size="sm" variant={isPrimary(c) ? 'default' : 'outline'} onClick={() => answer(c)}>
+                  {choiceLabel(lang, p, c)}
                 </Button>
               ))}
             </div>
+            {p.choices.filter(isLink).map((c) => (
+              <Button key={c} variant="link" size="sm" className="self-end" onClick={() => answer(c)}>
+                {choiceLabel(lang, p, c)}
+              </Button>
+            ))}
           </Card>
         );
       })}
@@ -58,6 +63,13 @@ export function SitesSection({ s, lang }: { s: PopupState; lang: Lang }) {
           <span className="text-[13px] font-normal text-muted-foreground">{count}</span>
         </summary>
         <div className="flex flex-col gap-2 border-t p-2.5">
+          <div className="flex items-start justify-between gap-3">
+            <label htmlFor="scripts-everywhere" className="flex flex-col gap-0.5 text-[13px] font-medium">
+              {tr('scripts_everywhere')}
+              <span className="text-xs font-normal text-muted-foreground">{tr('scripts_everywhere_hint')}</span>
+            </label>
+            <Switch id="scripts-everywhere" className="mt-0.5" checked={s.scriptsEverywhere} onCheckedChange={(enabled) => void send({ type: 'set-scripts-everywhere', enabled })} />
+          </div>
           <p className="text-xs text-muted-foreground">{tr('sites_hint')}</p>
           <ul id="site-rules" className="divide-y rounded-md border">
             {s.sites.rules.length === 0 && <li className="px-2 py-1.5 text-center text-[13px] text-muted-foreground">{tr('sites_none')}</li>}

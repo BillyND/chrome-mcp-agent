@@ -7,8 +7,9 @@
 // Everything lives in a closed shadow root with pointer-events: none (except
 // the bar's buttons) so it never changes what the page receives.
 
-import { getPrefs, isDark, t, tf, type Key, type Prefs } from '../i18n';
-import type { OverlayAction, PromptSpec, RuntimeMessage } from '../messages';
+import { getPrefs, isDark, t, type Prefs } from '../i18n';
+import type { Choice, OverlayAction, PromptSpec, RuntimeMessage } from '../messages';
+import { choiceLabel, isLink, isPrimary, promptCopy } from '../prompt-copy';
 
 const CSS = `
 :host{all:initial}
@@ -39,6 +40,10 @@ button:hover{background:color-mix(in srgb,var(--danger) 8%,var(--bg))}
 .prompt button{color:var(--fg)}
 .prompt button:hover{background:color-mix(in srgb,var(--fg) 6%,var(--bg))}
 .prompt button.primary{background:var(--primary);color:var(--primary-fg);border-color:var(--primary)}
+.prompt .links{display:flex;justify-content:flex-end;margin-top:8px}
+.prompt button.link{height:auto;padding:2px 0;border:0;border-radius:4px;background:none;color:var(--muted);font-weight:400;text-decoration:underline;text-underline-offset:2px}
+.prompt button.link:hover{background:none;color:var(--fg)}
+.prompt button:focus-visible{outline:2px solid var(--muted);outline-offset:2px}
 `;
 
 // Rounded pointer: zinc-900 body with a white rim, readable on light and dark pages.
@@ -213,8 +218,6 @@ function press() {
   setTimeout(() => place(x, y, 0, 1), 110);
 }
 
-const PRIMARY = new Set(['once', 'approve', 'done']);
-
 function el(tag: string, className: string, text?: string): HTMLElement {
   const node = document.createElement(tag);
   node.className = className;
@@ -227,17 +230,16 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
   const p = ensure();
   await loadPrefs();
   const lang = prefs.lang;
-  const params = { agent: spec.agent, host: spec.host, label: spec.label, reason: spec.label, category: t(lang, `cat_${spec.category}` as Key) };
-  const title = tf(lang, `prompt_${spec.kind}` as Key, params);
-  const detail = tf(lang, `prompt_${spec.kind}_detail` as Key, params);
+  const { title, detail } = promptCopy(lang, spec);
   endPrompt(spec.id);
   const card = el('div', `prompt ${spec.kind}`);
   card.dataset.id = spec.id;
   card.setAttribute('role', 'alertdialog');
   card.append(el('h4', '', title), el('p', '', detail));
   const row = el('div', 'row');
-  for (const choice of spec.choices) {
-    const b = el('button', PRIMARY.has(choice) ? 'primary' : '', t(lang, `choice_${choice}` as Key));
+  const links = el('div', 'links');
+  const choiceButton = (choice: Choice) => {
+    const b = el('button', isLink(choice) ? 'link' : isPrimary(choice) ? 'primary' : '', choiceLabel(lang, spec, choice));
     b.addEventListener('click', (e) => {
       // Only a real click by the user answers; a page or script cannot synthesize one.
       if (!e.isTrusted) return;
@@ -246,9 +248,11 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
       chrome.runtime.sendMessage(msg).catch(() => {});
       endPrompt(spec.id);
     });
-    row.append(b);
-  }
+    (isLink(choice) ? links : row).append(b);
+  };
+  spec.choices.forEach(choiceButton);
   card.append(row);
+  if (links.childElementCount) card.append(links);
   p.prompts.append(card);
 }
 

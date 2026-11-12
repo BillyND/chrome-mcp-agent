@@ -8,14 +8,13 @@ import type { ToolContent } from '../../../../shared/protocol';
 import type { Choice, ElementFacts, PageGates } from '../../messages';
 import { sessionOf } from '../cdp';
 import { callAllFrames, frameCall, parseRef } from '../frames';
-import { agentLabel } from '../tools/agent-id';
 import { STOPPED, ToolError, TrustedError, type ToolCtx } from '../tools/types';
 import { ask } from './approvals';
 import { checkAccountCreation, checkTyping, checkUpload } from './hard-blocks';
 import { factsAtPoint } from './point-facts';
 import { classifyClick, classifyDrop, classifySubmit, classifyTyping, type Verdict } from './sensitive';
 import { decideSite, hostOf, scriptRule } from './site-rules';
-import { getGrant, getRules, getSettings, setGrant, setRule } from './store';
+import { getGrant, getRules, getSettings, setGrant, setRule, setScriptsEverywhere } from './store';
 import { HANDBACK_HINT, wrapUntrusted } from './untrusted';
 
 function REFUSED(ctx: ToolCtx, message: string): never {
@@ -46,7 +45,7 @@ const asking = new Map<string, Promise<void>>();
 
 /**
  * Asks "allow this agent ...?" once per grant. `rule` is the key the answer is stored under (a host, or "script:host"):
- * Allow once is a timed grant, Always becomes an allow rule, Decline is remembered briefly so the agent cannot nag.
+ * Once is a timed grant, Always becomes an allow rule, All (scripts only) turns on "scripts on every site", Decline is remembered briefly so the agent cannot nag.
  */
 async function grantGate(ctx: ToolCtx, kind: 'site' | 'script', host: string, rule: string, what: string): Promise<void> {
   const grant = await getGrant(ctx.agent, rule);
@@ -61,16 +60,17 @@ async function grantGate(ctx: ToolCtx, kind: 'site' | 'script', host: string, ru
   }
   const settings = await getSettings();
   const question = (async () => {
-    const choice = await ask({ tabId: await questionTab(ctx), kind, agent: agentLabel(ctx.agent), host }, ctx.signal, settings.approvalTimeoutMs);
+    const choice = await ask({ tabId: await questionTab(ctx), kind, agent: ctx.agent, host }, ctx.signal, settings.approvalTimeoutMs);
     if (choice === 'once') await setGrant(ctx.agent, rule, true, settings.grantMs);
     else if (choice === 'always') await setRule(rule, 'allow');
+    else if (choice === 'all') await setScriptsEverywhere(true);
     else await setGrant(ctx.agent, rule, false, settings.denyMs);
     return choice;
   })();
   asking.set(key, question.then(() => {}, () => {}));
   try {
     const choice = await question;
-    if (choice === 'once' || choice === 'always') {
+    if (choice === 'once' || choice === 'always' || choice === 'all') {
       ctx.audit.approval = 'approved';
       return;
     }
@@ -95,6 +95,7 @@ export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
 
 /** Before running the agent's own JavaScript in a tab: the user allows it per site (once, or always as the rule "script:<host>"). */
 export async function guardScript(ctx: ToolCtx, tabId: number): Promise<void> {
+  if ((await getSettings()).scriptsEverywhere) return;
   const host = (await hostOfTab(tabId)) || 'this page';
   const rule = scriptRule(host);
   if ((await getRules())[rule] === 'allow') return;
@@ -123,7 +124,7 @@ async function confirm(ctx: ToolCtx, tabId: number, verdict: Verdict): Promise<v
   if (verdict.level === 'allow') return;
   const settings = await getSettings();
   const host = await hostOfTab(tabId);
-  const choice = await ask({ tabId, kind: 'sensitive', agent: agentLabel(ctx.agent), host, label: verdict.label, category: verdict.category }, ctx.signal, settings.approvalTimeoutMs);
+  const choice = await ask({ tabId, kind: 'sensitive', agent: ctx.agent, host, label: verdict.label, category: verdict.category }, ctx.signal, settings.approvalTimeoutMs);
   if (choice !== 'approve') declined(ctx, choice, `this action (${verdict.category}: "${verdict.label}")`, settings.approvalTimeoutMs);
   ctx.audit.approval = 'approved';
   ctx.notes.push(`The user approved this action (${verdict.category}: "${verdict.label}").`);
@@ -180,7 +181,7 @@ export async function guardDownload(ctx: ToolCtx, url: string): Promise<void> {
   const label = url.length > 80 ? `${url.slice(0, 77)}…` : url;
   const settings = await getSettings();
   const tabId = await questionTab(ctx);
-  const choice = await ask({ tabId, kind: 'sensitive', agent: agentLabel(ctx.agent), host: hostOf(url), label, category: 'download' }, ctx.signal, settings.approvalTimeoutMs);
+  const choice = await ask({ tabId, kind: 'sensitive', agent: ctx.agent, host: hostOf(url), label, category: 'download' }, ctx.signal, settings.approvalTimeoutMs);
   if (choice !== 'approve') declined(ctx, choice, `this download (${label})`, settings.approvalTimeoutMs);
   ctx.audit.approval = 'approved';
   ctx.notes.push(`The user approved this download (${label}).`);
