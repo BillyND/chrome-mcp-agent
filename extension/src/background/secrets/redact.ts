@@ -4,7 +4,10 @@
 export type Secrets = Record<string, string>;
 
 export const SECRET_NAME = /^[A-Za-z0-9_.-]{1,40}$/;
-/** Values shorter than this would redact ordinary words, so they are not accepted. */
+/**
+ * Values shorter than this are still typed and masked on screenshots, but are not redacted from
+ * text: hiding every "1" or "ab" would garble whole pages. The popup warns about it.
+ */
 export const MIN_SECRET_LENGTH = 3;
 
 const PLACEHOLDER = /\{\{secret:([A-Za-z0-9_.-]{1,40})\}\}/g;
@@ -14,7 +17,19 @@ export const placeholderOf = (name: string) => `{{secret:${name}}}`;
 export const hasPlaceholder = (text: string): boolean => /\{\{secret:/.test(text);
 
 export function isValidSecret(name: string, value: string): boolean {
-  return SECRET_NAME.test(name) && value.length >= MIN_SECRET_LENGTH;
+  return SECRET_NAME.test(name) && value.length > 0;
+}
+
+/** Turns what the user typed ("mật khẩu gmail") into a valid secret name ("mat_khau_gmail"). */
+export function normalizeSecretName(input: string): string {
+  return input
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[đĐ]/g, (c) => (c === 'đ' ? 'd' : 'D'))
+    .trim()
+    .replace(/\s+/g, '_')
+    .replace(/[^A-Za-z0-9_.-]/g, '')
+    .slice(0, 40);
 }
 
 /** Replaces {{secret:NAME}} with the stored value. Throws naming the secrets that do not exist. */
