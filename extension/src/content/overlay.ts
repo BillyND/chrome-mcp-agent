@@ -72,7 +72,8 @@ function ensure() {
   void loadPrefs();
   parts.btn.addEventListener('click', (e) => {
     e.stopPropagation();
-    chrome.runtime.sendMessage({ type: paused ? 'resume' : 'stop' }).catch(() => {});
+    hideAll();
+    chrome.runtime.sendMessage({ type: 'stop' }).catch(() => {});
   });
   (document.documentElement ?? document.body).appendChild(host);
   return parts;
@@ -100,6 +101,8 @@ chrome.storage.onChanged.addListener((changes) => {
 });
 
 function renderBar() {
+  // Stopped means gone: no cursor, no bar. The popup switch turns the agent back on.
+  if (paused) return hideAll();
   const p = ensure();
   p.bar.classList.toggle('paused', paused);
   currentLabelKey = paused ? 'bar_paused' : 'bar_working';

@@ -199,6 +199,17 @@ test('the agent bar and cursor stay visible through screenshots, think time and 
   // A navigation recreates the overlay; the next command shows it again right away.
   await call('browser_navigate', { action: 'reload' });
   await expect.poll(overlayState).toBe('shown');
+
+  // Stop makes the cursor and bar disappear at once (no on-page Resume); the switch brings the agent back.
+  const [sw] = ctx.serviceWorkers();
+  const popup = await ctx.newPage();
+  await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
+  await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'stop' }));
+  await expect.poll(overlayState).toBe('hidden');
+  await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'resume' }));
+  await popup.close();
+  await call('browser_snapshot');
+  await expect.poll(overlayState).toBe('shown');
 });
 
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
