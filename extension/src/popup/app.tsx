@@ -5,6 +5,7 @@ import type { AccessMode, PopupState } from '../messages';
 import { PendingPrompts, SitesSection } from './sites-section';
 import { SecretsSection } from './secrets-section';
 import { Badge, Button, Card, Collapsible, Input, ToggleGroup, ToggleGroupItem } from './ui/components';
+import { localSnippet } from '../../../shared/local-config';
 import { Icon } from './ui/icons';
 import { PrefsMenu } from './ui/prefs-menu';
 import { post, send } from './send';
@@ -52,16 +53,6 @@ function CopyButton({ value, label }: { value: string; label: string }) {
   );
 }
 
-/**
- * One-line client config for the local MCP server. npx runs the tarball the gateway serves,
- * so no npm registry is involved; the port only appears when it is not the default.
- */
-function localSnippet(port: number, gateway: string): string {
-  const server: Record<string, unknown> = { command: 'npx', args: ['-y', `--package=${gateway}/helmsman-mcp.tgz`, 'helmsman-mcp'] };
-  if (port !== 47821) server.env = { HELMSMAN_PORT: String(port) };
-  return JSON.stringify({ mcpServers: { helmsman: server } });
-}
-
 function App() {
   const prefs = usePrefs();
   const [s, setState] = useState<PopupState | null>(null);
@@ -99,7 +90,7 @@ function App() {
   const statusKey = active && s.paused ? 'paused' : headerStatus;
   const statusText = active && s.paused ? tr('paused') : tr(`status_${headerStatus}` as Key);
   const localText = s.local.status === 'connecting' ? tr('localWaiting') : tr(`status_${s.local.status}` as Key);
-  const snippet = localSnippet(s.local.port, s.gateway);
+  const snippet = localSnippet(s.gateway, s.local.port);
   const error = s.lastError ? tr(`err_${s.lastError}` as Key) : '';
   const mcpUrl = `${s.gateway}/mcp`;
   const busy = pending === 'connect' || (s.status === 'connecting' && !s.code);

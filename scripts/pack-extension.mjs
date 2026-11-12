@@ -58,7 +58,23 @@ for (const [entry, file] of [['popup/app.tsx', 'popup.js'], ['audit/app.tsx', 'a
   });
 }
 // Tailwind v4 compiles the shadcn theme and the classes used by the popup.
-execFileSync(process.execPath, [path.join(root, 'node_' + 'modules', '@tailwindcss', 'cli', 'dist', 'index.mjs'), '-i', path.join(ext, 'src/popup/styles.css'), '-o', path.join(out, 'popup.css'), '--minify'], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+const tailwind = (input, output) =>
+  execFileSync(process.execPath, [path.join(root, 'node_' + 'modules', '@tailwindcss', 'cli', 'dist', 'index.mjs'), '-i', input, '-o', output, '--minify'], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+tailwind(path.join(ext, 'src/popup/styles.css'), path.join(out, 'popup.css'));
+
+// The gateway's web pages load the same theme and header controls as /ui.css and /ui.js.
+const assets = path.join(root, 'worker', 'public');
+fs.mkdirSync(assets, { recursive: true });
+await esbuild.build({
+  ...common,
+  entryPoints: [path.join(ext, 'src/web/index.tsx')],
+  outfile: path.join(assets, 'ui.js'),
+  format: 'iife',
+  jsx: 'automatic',
+  sourcemap: false,
+  define: { ...common.define, 'process.env.NODE_ENV': JSON.stringify(argv.includes('--dev') ? 'development' : 'production') },
+});
+tailwind(path.join(ext, 'src/web/styles.css'), path.join(assets, 'ui.css'));
 
 const manifest = JSON.parse(fs.readFileSync(path.join(ext, 'manifest.json'), 'utf8'));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
@@ -77,8 +93,6 @@ try {
 }
 // The gateway serves the zip from its landing page (Workers static assets).
 if (fs.existsSync(zip)) {
-  const assets = path.join(root, 'worker', 'public');
-  fs.mkdirSync(assets, { recursive: true });
   fs.copyFileSync(zip, path.join(assets, 'chrome-mcp-agent.zip'));
 }
 console.log(`Built extension for ${gateway} -> ${path.relative(root, out)} (+ ${path.relative(root, zip)})`);

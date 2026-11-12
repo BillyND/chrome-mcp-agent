@@ -1,11 +1,16 @@
 // Server-rendered pages: landing (setup guide), consent, and result messages.
-// Everything is inline so a page is one request and works without JS.
+// Each page is readable and the consent form works without JS. /ui.css carries the extension's theme
+// (the same shadcn tokens and Tailwind classes as the popup) and /ui.js mounts the popup's language and
+// theme popovers into the header and switches the guide's tabs.
+
+import { localCommand, localServer, localSnippet } from '../../shared/local-config';
+import { segmentedClass, segmentedItemClass } from '../../shared/ui-classes';
 
 export const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 // Both languages are rendered; CSS shows the one matching <html lang>. That keeps the
-// consent form fully usable without JS and lets the tiny script switch language/theme.
+// consent form fully usable without JS.
 const bi = (vi: string, en: string) => `<span data-l="vi">${vi}</span><span data-l="en">${en}</span>`;
 
 // Known server messages (Vietnamese) and their English counterpart.
@@ -20,23 +25,19 @@ const EN: Record<string, string> = {
 };
 const known = (vi: string) => (EN[vi] ? bi(escapeHtml(vi), escapeHtml(EN[vi])) : escapeHtml(vi));
 
+// Page layout only; colors and radii come from the shared theme in /ui.css.
 const CSS = `
-:root{--radius:.625rem;--background:oklch(1 0 0);--foreground:oklch(.141 .005 285.823);--card:oklch(1 0 0);--primary:oklch(.21 .006 285.885);--primary-foreground:oklch(.985 0 0);--secondary:oklch(.967 .001 286.375);--muted:oklch(.967 .001 286.375);--muted-foreground:oklch(.5 .016 285.938);--destructive:oklch(.577 .245 27.325);--border:oklch(.92 .004 286.32);--input:oklch(.92 .004 286.32);--ring:oklch(.705 .015 286.067);--warning:oklch(.55 .15 70)}
-:root.dark{--background:oklch(.141 .005 285.823);--foreground:oklch(.985 0 0);--card:oklch(.21 .006 285.885);--primary:oklch(.92 .004 286.32);--primary-foreground:oklch(.21 .006 285.885);--secondary:oklch(.274 .006 286.033);--muted:oklch(.274 .006 286.033);--muted-foreground:oklch(.72 .015 286.067);--destructive:oklch(.704 .191 22.216);--border:oklch(1 0 0/10%);--input:oklch(1 0 0/15%);--ring:oklch(.552 .016 285.938);--warning:oklch(.8 .15 80)}
 html[lang=en] [data-l=vi],html[lang=vi] [data-l=en]{display:none}
-*{box-sizing:border-box}
-body{margin:0;background:var(--background);color:var(--foreground);font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
-main{max-width:560px;margin:0 auto;padding:20px 16px 48px}
+body{font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+main{max-width:600px;margin:0 auto;padding:20px 16px 48px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:40px}
 .brand{display:flex;align-items:center;gap:10px;font-weight:600;font-size:15px;min-width:0}
 .logo{width:32px;height:32px;border-radius:8px;background:var(--primary);color:var(--primary-foreground);display:grid;place-items:center;flex:none}
-.tools{display:flex;gap:8px;flex:none}
-.seg{display:inline-flex;border:1px solid var(--border);border-radius:var(--radius);padding:2px;background:var(--muted)}
-.seg button{all:unset;cursor:pointer;min-width:28px;height:26px;padding:0 6px;border-radius:calc(var(--radius) - 3px);display:inline-grid;place-items:center;font-size:12px;font-weight:600;color:var(--muted-foreground);box-sizing:border-box}
-.seg button[aria-pressed=true]{background:var(--card);color:var(--foreground);box-shadow:0 1px 2px oklch(0 0 0/12%)}
-.seg button:focus-visible,.btn:focus-visible,.field input:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
-h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;margin:0 0 8px}
-h2{font-size:18px;line-height:1.3;margin:0 0 8px;letter-spacing:-.01em}
+#prefs{min-width:64px;min-height:32px;display:flex;justify-content:flex-end}
+.btn:focus-visible,.field input:focus-visible{outline:2px solid var(--ring);outline-offset:2px}
+h1{font-size:30px;line-height:1.15;letter-spacing:-.02em;margin:0 0 8px;font-weight:700}
+h2{font-size:18px;line-height:1.3;margin:0 0 8px;letter-spacing:-.01em;font-weight:600}
+b{font-weight:600}
 .muted{color:var(--muted-foreground)}
 .card{background:var(--card);border:1px solid var(--border);border-radius:calc(var(--radius) + 4px);padding:24px;box-shadow:0 1px 2px oklch(0 0 0/5%)}
 .btn{appearance:none;border:1px solid transparent;border-radius:var(--radius);height:40px;padding:0 18px;font:500 14px/1 inherit;font-family:inherit;cursor:pointer;background:var(--primary);color:var(--primary-foreground);text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
@@ -46,80 +47,159 @@ h2{font-size:18px;line-height:1.3;margin:0 0 8px;letter-spacing:-.01em}
 .btn.sm{height:34px;padding:0 12px;font-size:13px}
 .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
 .hero{margin-bottom:28px}.hero p{margin:0 0 20px;font-size:16px}
+.section-title{font-size:16px;margin:32px 0 12px}
 .steps{list-style:none;padding:0;margin:0;counter-reset:s;display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
 .steps li{counter-increment:s;position:relative;padding-left:40px;min-width:0}
 .steps li::before{content:counter(s);position:absolute;left:0;top:0;width:26px;height:26px;border-radius:50%;border:1px solid var(--border);background:var(--secondary);display:grid;place-items:center;font-size:12px;font-weight:600}
+.tip{margin-top:20px;padding:12px 14px;border-radius:var(--radius);background:var(--muted);font-size:14px}
+.tablist{display:flex;flex-wrap:wrap;width:100%;margin-bottom:16px}
 code{font:12.5px ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--muted);border-radius:6px;padding:2px 6px;overflow-wrap:anywhere}
 .url{display:flex;gap:8px;margin-top:10px;align-items:stretch}
 .url code{flex:1;min-width:0;overflow:auto;white-space:nowrap;border:1px solid var(--border);border-radius:var(--radius);padding:8px 12px;display:flex;align-items:center}
 .copy .ok,.copy.done .no{display:none}.copy.done .ok{display:inline}
 .notice{border:1px solid var(--warning);color:var(--warning);padding:10px 14px;border-radius:var(--radius);font-size:14px;margin:12px 0}
-.who{display:grid;gap:2px;margin:12px 0 4px}
 .field{display:flex;flex-direction:column;gap:6px;margin-top:20px;font-size:14px}
 .field input{font:600 20px ui-monospace,SFMono-Regular,Menlo,monospace;letter-spacing:.12em;text-transform:uppercase;height:48px;padding:0 14px;border-radius:var(--radius);border:1px solid var(--input);background:transparent;color:var(--foreground);width:100%}
 .error{color:var(--destructive);font-weight:500;margin:12px 0 0;font-size:14px}
 .big{width:40px;height:40px;border-radius:50%;display:grid;place-items:center;background:var(--secondary);margin-bottom:12px;font-size:20px}
-.prose h2{margin:28px 0 8px}.prose p,.prose ul{margin:0 0 12px}.prose ul{padding-left:20px}.prose li{margin:4px 0}
+.prose h2{margin:28px 0 8px}.prose p,.prose ul{margin:0 0 12px}.prose ul{padding-left:20px;list-style:disc}.prose li{margin:4px 0}
 .prose table{width:100%;border-collapse:collapse;font-size:14px;margin:0 0 12px}.prose th,.prose td{text-align:left;vertical-align:top;padding:8px 10px;border-bottom:1px solid var(--border)}.prose th{white-space:nowrap}
 footer{margin-top:40px;padding-top:16px;border-top:1px solid var(--border);display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
-footer a{color:var(--muted-foreground);text-underline-offset:3px}footer a:hover{color:var(--foreground)}
-a.link{color:var(--foreground);text-underline-offset:3px}
+footer a{color:var(--muted-foreground);text-decoration:underline;text-underline-offset:3px}footer a:hover{color:var(--foreground)}
+a.link{color:var(--foreground);text-decoration:underline;text-underline-offset:3px}
 @media (max-width:420px){h1{font-size:26px}.card{padding:18px}.row .btn{flex:1}}
 `;
 
 const LOGO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 3l7 17 2.5-7L21 10.5z"/></svg>`;
-const SUN = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>`;
-const MOON = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>`;
-const AUTO = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg>`;
 
-// Runs in <head> before paint (no flash) and wires the toggles once the body exists.
-const SCRIPT = `(function(){var d=document.documentElement,S=localStorage,g=function(k){try{return S.getItem(k)}catch(e){return null}},s=function(k,v){try{S.setItem(k,v)}catch(e){}};
-var mq=matchMedia('(prefers-color-scheme: dark)');
-function lang(){var l=g('cma-lang');return l==='vi'||l==='en'?l:/^vi/i.test(navigator.language||'')?'vi':'en'}
-function theme(){var t=g('cma-theme');return t==='dark'||t==='system'?t:'light'}
-function apply(){var t=theme();d.lang=lang();d.classList.toggle('dark',t==='dark'||(t==='system'&&mq.matches));
-document.querySelectorAll('[data-lang]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.lang===d.lang))});
-document.querySelectorAll('[data-theme]').forEach(function(b){b.setAttribute('aria-pressed',String(b.dataset.theme===t))})}
-apply();mq.addEventListener&&mq.addEventListener('change',apply);
-document.addEventListener('DOMContentLoaded',function(){apply();
-document.addEventListener('click',function(e){var b=e.target.closest('button');if(!b)return;
-if(b.dataset.lang){s('cma-lang',b.dataset.lang);apply()}
-else if(b.dataset.theme){s('cma-theme',b.dataset.theme);apply()}
-else if(b.dataset.copy){var el=document.getElementById(b.dataset.copy);navigator.clipboard.writeText(el.textContent).then(function(){b.classList.add('done');setTimeout(function(){b.classList.remove('done')},1500)})}})})})();`;
+// Runs in <head> before paint so the saved language and theme apply without a flash (the keys are the
+// ones /ui.js reads and writes), and handles the copy buttons.
+const SCRIPT = `(function(){var d=document.documentElement,g=function(k){try{return localStorage.getItem(k)}catch(e){return null}};
+var l=g('cma-lang'),t=g('cma-theme');d.lang=l==='vi'||l==='en'?l:/^vi/i.test(navigator.language||'')?'vi':'en';
+d.classList.toggle('dark',t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches));
+document.addEventListener('click',function(e){var b=e.target.closest('button[data-copy]');if(!b)return;
+var el=document.getElementById(b.dataset.copy);navigator.clipboard.writeText(el.textContent).then(function(){b.classList.add('done');setTimeout(function(){b.classList.remove('done')},1500)})})})();`;
 
 function layout(title: string, body: string): string {
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${escapeHtml(title)}</title><style>${CSS}</style><script>${SCRIPT}</script></head><body><main>
-<header><div class="brand"><span class="logo">${LOGO}</span>Helmsman</div>
-<div class="tools"><div class="seg" role="group" aria-label="Language"><button type="button" data-lang="en" aria-pressed="false">EN</button><button type="button" data-lang="vi" aria-pressed="false">VI</button></div>
-<div class="seg" role="group" aria-label="Theme"><button type="button" data-theme="light" aria-label="Light" aria-pressed="true">${SUN}</button><button type="button" data-theme="dark" aria-label="Dark" aria-pressed="false">${MOON}</button><button type="button" data-theme="system" aria-label="System" aria-pressed="false">${AUTO}</button></div></div></header>
+<title>${escapeHtml(title)}</title><link rel="stylesheet" href="/ui.css"><style>${CSS}</style><script>${SCRIPT}</script><script src="/ui.js" defer></script></head><body><main>
+<header><div class="brand"><span class="logo">${LOGO}</span>Helmsman</div><div id="prefs"></div></header>
 ${body}
 </main></body></html>`;
 }
 
-export function landingPage(publicUrl: string): string {
+let copyIds = 0;
+/** A code box with a Copy button. */
+const copyBox = (value: string) => {
+  const id = `c${++copyIds}`;
+  return `<div class="url"><code id="${id}">${escapeHtml(value)}</code><button type="button" class="btn outline sm copy" data-copy="${id}"><span class="no">${bi('Sao chép', 'Copy')}</span><span class="ok">${bi('Đã chép', 'Copied')}</span></button></div>`;
+};
+const step = (title: string, body: string, extra = '') => `<li><b>${title}</b><div class="muted">${body}</div>${extra}</li>`;
+const tip = (vi: string, en: string) => `<p class="tip">${bi(vi, en)}</p>`;
+
+const GET_CODE = step(
+  bi('Lấy mã kết nối', 'Get a connection code'),
+  bi('Bấm biểu tượng Helmsman trên Chrome, rồi bấm <b>Kết nối</b>. Mã có dạng <code>K7QX2-MN4PD</code>.', 'Click the Helmsman icon in Chrome, then <b>Connect</b>. The code looks like <code>K7QX2-MN4PD</code>.'),
+);
+const PASTE_CODE = (client: string) =>
+  step(
+    bi('Dán mã kết nối', 'Paste the connection code'),
+    bi(`${client} mở trang của Helmsman: dán mã rồi bấm <b>Cho phép</b>.`, `${client} opens a Helmsman page: paste the code and click <b>Allow</b>.`),
+  );
+const LOCAL_CHECK = step(
+  bi('Kiểm tra kết nối', 'Check the connection'),
+  bi('Mở popup Helmsman → <b>Chế độ cục bộ</b>: trạng thái chuyển sang <b>Đã kết nối</b> khi client chạy. Không cần tài khoản, cần Node 20+.', 'Open the Helmsman popup → <b>Local mode</b>: it shows <b>Connected</b> once the client runs. No account needed; requires Node 20+.'),
+);
+const HELMSMAN_FULL = tip(
+  'Không muốn Helmsman hỏi trước khi gửi, xoá hay thanh toán? Trong popup, mở <b>Quyền</b> và chọn <b>Toàn quyền</b>.',
+  'Don’t want Helmsman to ask before sending, deleting or paying? In the popup, open <b>Permissions</b> and pick <b>Full access</b>.',
+);
+
+interface Client {
+  id: string;
+  name: string;
+  steps: string;
+}
+
+function clients(publicUrl: string): Client[] {
   const mcpUrl = `${publicUrl}/mcp`;
+  const command = localCommand(publicUrl);
+  const vscodeConfig = JSON.stringify({ servers: { helmsman: localServer(publicUrl) } });
+  const codexConfig = `[mcp_servers.helmsman]\ncommand = "npx"\nargs = ${JSON.stringify(localServer(publicUrl).args)}`;
+  return [
+    {
+      id: 'chatgpt',
+      name: 'ChatGPT',
+      steps: `<ol class="steps">${GET_CODE}
+${step(bi('Bật Developer mode', 'Turn on Developer mode'), bi('ChatGPT → <b>Cài đặt</b> → <b>Apps &amp; Connectors</b> → <b>Advanced settings</b> → bật <b>Developer mode</b>.', 'ChatGPT → <b>Settings</b> → <b>Apps &amp; Connectors</b> → <b>Advanced settings</b> → turn on <b>Developer mode</b>.'))}
+${step(bi('Tạo connector', 'Create the connector'), bi('Quay lại <b>Apps &amp; Connectors</b> → <b>Create</b>. Tên: <b>Helmsman</b>, Authentication: <b>OAuth</b>, dán địa chỉ MCP này, tick <b>I trust this application</b> rồi bấm <b>Create</b>.', 'Back in <b>Apps &amp; Connectors</b> → <b>Create</b>. Name: <b>Helmsman</b>, Authentication: <b>OAuth</b>, paste this MCP URL, tick <b>I trust this application</b> and click <b>Create</b>.'), copyBox(mcpUrl))}
+${PASTE_CODE('ChatGPT')}
+${step(bi('Dùng trong chat', 'Use it in a chat'), bi('Trong chat mới, bấm <b>+</b> → <b>More</b> → <b>Developer mode</b> và chọn <b>Helmsman</b>. Khi ChatGPT hỏi xác nhận một hành động, chọn cho phép; nếu có tuỳ chọn ghi nhớ, bật nó để không bị hỏi lại mỗi lần.', 'In a new chat, click <b>+</b> → <b>More</b> → <b>Developer mode</b> and pick <b>Helmsman</b>. When ChatGPT asks you to confirm an action, allow it; if it offers to remember the choice, turn that on so it stops asking every time.'))}
+</ol>${HELMSMAN_FULL}`,
+    },
+    {
+      id: 'claude',
+      name: 'Claude',
+      steps: `<ol class="steps">${GET_CODE}
+${step(bi('Thêm connector', 'Add the connector'), bi('claude.ai hoặc Claude Desktop → <b>Settings</b> → <b>Connectors</b> → <b>Add custom connector</b>. Tên: <b>Helmsman</b>, dán địa chỉ MCP này rồi bấm <b>Add</b>.', 'claude.ai or Claude Desktop → <b>Settings</b> → <b>Connectors</b> → <b>Add custom connector</b>. Name: <b>Helmsman</b>, paste this MCP URL and click <b>Add</b>.'), copyBox(mcpUrl))}
+${step(bi('Kết nối', 'Connect'), bi('Bấm <b>Connect</b> bên cạnh Helmsman. Claude mở trang của Helmsman: dán mã rồi bấm <b>Cho phép</b>.', 'Click <b>Connect</b> next to Helmsman. Claude opens a Helmsman page: paste the code and click <b>Allow</b>.'))}
+${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Settings</b> → <b>Connectors</b> → <b>Helmsman</b>, đặt quyền các tool là <b>Always allow</b> để Claude không hỏi trước mỗi lần dùng. Trong chat, bật Helmsman ở menu <b>Search and tools</b>.', 'In <b>Settings</b> → <b>Connectors</b> → <b>Helmsman</b>, set the tool permissions to <b>Always allow</b> so Claude stops asking before each use. In a chat, turn Helmsman on in the <b>Search and tools</b> menu.'))}
+</ol>${tip('Connector gắn với tài khoản Claude, nên dùng được cả trên claude.ai lẫn Claude Desktop.', 'The connector belongs to your Claude account, so it works in both claude.ai and Claude Desktop.')}${HELMSMAN_FULL}`,
+    },
+    {
+      id: 'claude-code',
+      name: 'Claude Code',
+      steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Chạy lệnh này trong terminal:', 'Run this in a terminal:'), copyBox(`claude mcp add helmsman -- ${command}`))}
+${LOCAL_CHECK}
+${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Khi Claude Code hỏi dùng tool Helmsman, chọn <b>Yes, and don’t ask again</b>. Hoặc thêm <code>"mcp__helmsman"</code> vào <code>permissions.allow</code> trong <code>.claude/settings.json</code>.', 'When Claude Code asks to use a Helmsman tool, pick <b>Yes, and don’t ask again</b>. Or add <code>"mcp__helmsman"</code> to <code>permissions.allow</code> in <code>.claude/settings.json</code>.'))}
+</ol>${HELMSMAN_FULL}`,
+    },
+    {
+      id: 'cursor',
+      name: 'Cursor',
+      steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('<b>Cursor Settings</b> → <b>MCP</b> → <b>Add new MCP server</b>, hoặc sửa <code>~/.cursor/mcp.json</code>, rồi dán:', '<b>Cursor Settings</b> → <b>MCP</b> → <b>Add new MCP server</b>, or edit <code>~/.cursor/mcp.json</code>, and paste:'), copyBox(localSnippet(publicUrl)))}
+${LOCAL_CHECK}
+${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Cursor Settings</b> → <b>Agent</b>, bật chế độ tự chạy tool (auto-run) để không phải bấm <b>Run</b> cho từng lệnh.', 'In <b>Cursor Settings</b> → <b>Agent</b>, turn on auto-run for tools so you don’t have to click <b>Run</b> for each call.'))}
+</ol>${HELMSMAN_FULL}`,
+    },
+    {
+      id: 'vscode',
+      name: 'VS Code',
+      steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Tạo <code>.vscode/mcp.json</code> (hoặc chạy <b>MCP: Add Server</b> trong Command Palette) với nội dung:', 'Create <code>.vscode/mcp.json</code> (or run <b>MCP: Add Server</b> from the Command Palette) with:'), copyBox(vscodeConfig))}
+${LOCAL_CHECK}
+${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Dùng Copilot Chat ở chế độ <b>Agent</b>. Khi được hỏi chạy tool Helmsman, mở menu cạnh nút <b>Continue</b> và chọn <b>Always allow</b>.', 'Use Copilot Chat in <b>Agent</b> mode. When asked to run a Helmsman tool, open the menu next to <b>Continue</b> and pick <b>Always allow</b>.'))}
+</ol>${HELMSMAN_FULL}`,
+    },
+    {
+      id: 'codex',
+      name: 'Codex',
+      steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Thêm vào <code>~/.codex/config.toml</code>:', 'Add to <code>~/.codex/config.toml</code>:'), copyBox(codexConfig))}
+${LOCAL_CHECK}
+</ol>${HELMSMAN_FULL}`,
+    },
+  ];
+}
+
+const tabItem = `${segmentedItemClass} h-8 px-3 text-[13px]`;
+
+export function landingPage(publicUrl: string): string {
+  copyIds = 0;
+  const list = clients(publicUrl);
+  const tabs = list
+    .map((c, i) => `<button type="button" role="tab" class="${tabItem}" data-tab="${c.id}" data-state="${i ? 'off' : 'on'}" aria-selected="${!i}" aria-controls="panel-${c.id}" tabindex="${i ? -1 : 0}">${c.name}</button>`)
+    .join('');
+  const panels = list.map((c, i) => `<section role="tabpanel" id="panel-${c.id}" aria-label="${c.name}"${i ? ' hidden' : ''}>${c.steps}</section>`).join('\n');
   return layout(
     'Helmsman',
     `<section class="hero"><h1>Helmsman</h1>
-<p class="muted">${bi('Cho ChatGPT dùng Chrome của bạn.', 'Let ChatGPT use your Chrome.')}</p>
-<a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a>
-<p class="muted">${bi('Dùng Claude Desktop, Cursor hay Claude Code? Bật <b>Chế độ cục bộ</b> trong extension, không cần tài khoản.', 'Using Claude Desktop, Cursor or Claude Code? Turn on <b>Local mode</b> in the extension, no account needed.')}</p></section>
+<p class="muted">${bi('Cho ChatGPT, Claude và các AI khác dùng Chrome của bạn: đọc trang, bấm, gõ, điền form.', 'Let ChatGPT, Claude and other AI assistants use your Chrome: read pages, click, type and fill forms.')}</p>
+<a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension', 'Download extension')}</a></section>
 <div class="card"><ol class="steps">
-<li><b>${bi('Cài extension', 'Install the extension')}</b><div class="muted">${bi(
-      'Giải nén file zip. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.',
-      'Unzip the file. Open <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.',
-    )}</div></li>
-<li><b>${bi('Lấy mã kết nối', 'Get a connection code')}</b><div class="muted">${bi(
-      'Bấm biểu tượng extension, rồi bấm <b>Kết nối</b> để nhận mã.',
-      'Click the extension icon, then <b>Connect</b> to get a code.',
-    )}</div></li>
-<li><b>${bi('Thêm vào ChatGPT', 'Add it to ChatGPT')}</b><div class="muted">${bi(
-      'Cài đặt → Apps &amp; Connectors → Advanced → Developer mode → Create. Dán địa chỉ MCP, chọn OAuth, rồi dán mã kết nối.',
-      'Settings → Apps &amp; Connectors → Advanced → Developer mode → Create. Paste the MCP URL, choose OAuth, then paste the code.',
-    )}</div>
-<div class="url"><code id="u">${escapeHtml(mcpUrl)}</code><button type="button" class="btn outline sm copy" data-copy="u"><span class="no">${bi('Sao chép', 'Copy')}</span><span class="ok">${bi('Đã chép', 'Copied')}</span></button></div></li>
+${step(bi('Cài extension', 'Install the extension'), bi('Giải nén file zip. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.', 'Unzip the file. Open <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.'))}
 </ol></div>
+<h2 class="section-title">${bi('Kết nối với AI của bạn', 'Connect your AI')}</h2>
+<div class="card" data-tabs><div role="tablist" aria-label="AI" class="${segmentedClass} tablist">${tabs}</div>
+${panels}</div>
 ${footer}`,
   );
 }
@@ -180,7 +260,7 @@ export function privacyPage(): string {
 <tr><th><code>storage</code>, <code>alarms</code></th><td>${bi('Lưu cài đặt cục bộ; giữ kết nối và dọn phiên không dùng.', 'Keep local settings; keep the connection alive and clean up idle sessions.')}</td></tr>
 <tr><th><code>downloads</code></th><td>${bi('Tải file hoặc PDF khi AI yêu cầu và bạn cho phép.', 'Download files or PDFs when the AI asks and you allow it.')}</td></tr>
 <tr><th><code>cookies</code>, <code>history</code></th><td>${bi('Chỉ dùng khi AI gọi tool <code>browser_cookies</code> / <code>browser_history</code>; kết quả chỉ về client AI của bạn.', 'Used only when the AI calls <code>browser_cookies</code> / <code>browser_history</code>; results go only to your AI client.')}</td></tr>
-<tr><th>&lt;all_urls&gt;</th><td>${bi('AI có thể được yêu cầu làm việc trên bất kỳ trang nào. Bạn kiểm soát bằng quy tắc theo trang, công tắc Dừng và hộp thoại xác nhận.', 'The AI may be asked to work on any site. You stay in control with site rules, the Stop switch and confirmation prompts.')}</td></tr>
+<tr><th>&lt;all_urls&gt;</th><td>${bi('AI có thể được yêu cầu làm việc trên bất kỳ trang nào. Bạn kiểm soát bằng quy tắc theo trang, mục Quyền, nút Dừng và hộp thoại xác nhận.', 'The AI may be asked to work on any site. You stay in control with site rules, Permissions, the Stop button and confirmation prompts.')}</td></tr>
 </table>
 <p>${bi('Extension không tải hay chạy mã từ xa; toàn bộ mã nằm trong gói cài đặt.', 'The extension loads and runs no remote code; all code ships in the package.')}</p>
 
@@ -198,8 +278,8 @@ export function privacyPage(): string {
 
 <h2>${bi('7. Bảo vệ người dùng', '7. Safeguards')}</h2>
 <p>${bi(
-      'Hành động nhạy cảm (gửi, thanh toán, xoá, tải lên…) luôn hỏi bạn; số thẻ và giấy tờ tuỳ thân bị chặn; chữ lấy từ trang được gắn nhãn là dữ liệu không đáng tin để chống prompt injection; công tắc <b>Cho phép AI điều khiển</b> dừng AI ngay lập tức.',
-      'Sensitive actions (submit, pay, delete, upload…) always ask you; card numbers and ID numbers are blocked; page text is labelled untrusted to resist prompt injection; the <b>Allow AI control</b> switch stops the AI immediately.',
+      'Ở chế độ Hỏi trước, hành động nhạy cảm (gửi, thanh toán, xoá, tải lên…) luôn hỏi bạn; số thẻ và giấy tờ tuỳ thân bị chặn; chữ lấy từ trang được gắn nhãn là dữ liệu không đáng tin để chống prompt injection; nút <b>Dừng</b> trên trang kết thúc việc AI đang làm ngay lập tức, và mục <b>Quyền</b> cho bạn chọn Toàn quyền, Hỏi trước hoặc Chỉ xem.',
+      'In Ask first mode, sensitive actions (submit, pay, delete, upload…) ask you first; card numbers and ID numbers are blocked; page text is labelled untrusted to resist prompt injection; the <b>Stop</b> button on the page ends what the AI is doing at once, and <b>Permissions</b> lets you pick Full access, Ask first or Read only.',
     )}</p>
 
 <h2>${bi('8. Thay đổi và liên hệ', '8. Changes and contact')}</h2>

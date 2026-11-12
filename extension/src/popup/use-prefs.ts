@@ -1,17 +1,16 @@
-// Language and theme preferences for an extension page: loads them, follows changes made in the
+// Language and theme preferences for an extension page or a gateway web page: loads them, follows changes made in the
 // popup, and applies the theme class.
 
 import { useEffect, useState } from 'react';
-import { getPrefs, isDark, type Prefs } from '../i18n';
+import { getPrefs, isDark, onPrefsChange, type Prefs } from '../i18n';
 
 export function usePrefs(): Prefs | null {
   const [prefs, setPrefs] = useState<Prefs | null>(null);
 
   useEffect(() => {
-    void getPrefs().then(setPrefs);
-    const onChange = (changes: Record<string, chrome.storage.StorageChange>) => changes.prefs && void getPrefs().then(setPrefs);
-    chrome.storage.onChanged.addListener(onChange);
-    return () => chrome.storage.onChanged.removeListener(onChange);
+    const load = () => void getPrefs().then(setPrefs);
+    load();
+    return onPrefsChange(load);
   }, []);
 
   useEffect(() => {

@@ -4,9 +4,10 @@ import { landingPage, privacyPage } from '../worker/src/pages';
 describe('privacy policy page', () => {
   const html = privacyPage();
 
-  it('keeps the shared layout with language and theme toggles', () => {
-    expect(html).toContain('data-lang="en"');
-    expect(html).toContain('data-theme="dark"');
+  it('keeps the shared layout: the popup theme and its language and theme popovers', () => {
+    expect(html).toContain('<link rel="stylesheet" href="/ui.css">');
+    expect(html).toContain('<script src="/ui.js" defer>');
+    expect(html).toContain('<div id="prefs">');
     expect(html).toContain('<span data-l="vi">');
     expect(html).toContain('<span data-l="en">');
   });
@@ -23,6 +24,16 @@ describe('privacy policy page', () => {
     for (const perm of ['debugger', 'tabs', 'tabGroups', 'scripting', 'storage', 'alarms', 'downloads', 'webNavigation', 'cookies', 'history', '&lt;all_urls&gt;']) {
       expect(html).toContain(perm);
     }
+  });
+
+  it('guides each AI client in its own tab, with the cloud URL or the local command', () => {
+    const landing = landingPage('https://example.test');
+    for (const id of ['chatgpt', 'claude', 'claude-code', 'cursor', 'vscode', 'codex']) expect(landing).toContain(`data-tab="${id}"`);
+    expect(landing.match(/role="tabpanel"/g)).toHaveLength(6);
+    expect(landing.match(/ hidden>/g)).toHaveLength(5);
+    expect(landing).toContain('https://example.test/mcp');
+    expect(landing).toContain('claude mcp add helmsman -- npx -y --package=https://example.test/helmsman-mcp.tgz helmsman-mcp');
+    expect(landing).toContain('Always allow');
   });
 
   it('is linked from the landing footer', () => {

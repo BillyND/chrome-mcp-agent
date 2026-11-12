@@ -5,6 +5,7 @@ import { Slot } from '@radix-ui/react-slot';
 import * as ToggleGroupPrimitive from '@radix-ui/react-toggle-group';
 import { cva, type VariantProps } from 'class-variance-authority';
 import { useState, type ComponentProps, type ReactNode } from 'react';
+import { segmentedClass, segmentedItemClass, segmentedItemSm } from '../../../../shared/ui-classes';
 import { Icon } from './icons';
 import { cn } from './utils';
 
@@ -123,16 +124,13 @@ export function MenuPopover<T extends string>({
 }
 
 export function ToggleGroup({ className, ...props }: ComponentProps<typeof ToggleGroupPrimitive.Root>) {
-  return <ToggleGroupPrimitive.Root className={cn('inline-flex items-center rounded-md bg-muted p-0.5', className)} {...props} />;
+  return <ToggleGroupPrimitive.Root className={cn(segmentedClass, className)} {...props} />;
 }
 
 export function ToggleGroupItem({ className, ...props }: ComponentProps<typeof ToggleGroupPrimitive.Item>) {
   return (
     <ToggleGroupPrimitive.Item
-      className={cn(
-        'inline-flex h-6 min-w-7 cursor-pointer items-center justify-center rounded-sm px-1.5 text-[11px] font-medium text-muted-foreground outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs [&_svg]:size-3.5',
-        className,
-      )}
+      className={cn(segmentedItemClass, segmentedItemSm, className)}
       {...props}
     />
   );

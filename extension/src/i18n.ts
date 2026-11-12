@@ -230,17 +230,58 @@ export interface Prefs {
   theme: Theme;
 }
 
+// Extension pages keep preferences in chrome.storage. The gateway's web pages have no extension API, so they
+// use localStorage under the keys their pre-paint script reads (see worker/src/pages.ts).
+const inExtension = typeof chrome !== 'undefined' && !!chrome.storage?.local;
+const WEB_KEY = { lang: 'cma-lang', theme: 'cma-theme' } as const;
+const WEB_EVENT = 'helmsman-prefs';
+
+function webGet(key: keyof Prefs): string | undefined {
+  try {
+    return localStorage.getItem(WEB_KEY[key]) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+async function storedPrefs(): Promise<Partial<Record<keyof Prefs, unknown>>> {
+  if (inExtension) return ((await chrome.storage.local.get('prefs')).prefs ?? {}) as Partial<Prefs>;
+  return { lang: webGet('lang'), theme: webGet('theme') };
+}
+
 export async function getPrefs(): Promise<Prefs> {
-  const { prefs } = await chrome.storage.local.get('prefs');
-  const p = (prefs ?? {}) as Partial<Prefs>;
+  const p = await storedPrefs();
   const browserLang: Lang = (navigator.language || 'en').toLowerCase().startsWith('vi') ? 'vi' : 'en';
-  return { lang: p.lang ?? browserLang, theme: p.theme ?? 'light' };
+  const lang = p.lang === 'en' || p.lang === 'vi' ? p.lang : browserLang;
+  const theme = p.theme === 'dark' || p.theme === 'system' ? p.theme : 'light';
+  return { lang, theme };
 }
 
 export async function setPrefs(next: Partial<Prefs>): Promise<Prefs> {
   const merged = { ...(await getPrefs()), ...next };
-  await chrome.storage.local.set({ prefs: merged });
+  if (inExtension) {
+    await chrome.storage.local.set({ prefs: merged });
+  } else {
+    try {
+      localStorage.setItem(WEB_KEY.lang, merged.lang);
+      localStorage.setItem(WEB_KEY.theme, merged.theme);
+    } catch {
+      // Storage blocked: the choice still applies to this page.
+    }
+    dispatchEvent(new Event(WEB_EVENT));
+  }
   return merged;
+}
+
+/** Calls `listener` whenever the preferences change (in any extension page, or on this web page). Returns the unsubscribe. */
+export function onPrefsChange(listener: () => void): () => void {
+  if (inExtension) {
+    const onChange = (changes: Record<string, chrome.storage.StorageChange>) => changes.prefs && listener();
+    chrome.storage.onChanged.addListener(onChange);
+    return () => chrome.storage.onChanged.removeListener(onChange);
+  }
+  addEventListener(WEB_EVENT, listener);
+  return () => removeEventListener(WEB_EVENT, listener);
 }
 
 export function t(lang: Lang, key: Key): string {

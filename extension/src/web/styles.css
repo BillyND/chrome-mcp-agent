@@ -1,0 +1,5 @@
+/* The gateway's web pages use the popup's theme and components. Page-specific layout stays inline in
+   worker/src/pages.ts (unlayered, so it wins over Tailwind's base layer). */
+@import "../popup/styles.css";
+@source "./";
+@source "../../../worker/src/pages.ts";
