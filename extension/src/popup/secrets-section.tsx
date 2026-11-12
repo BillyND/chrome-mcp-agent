@@ -3,7 +3,7 @@
 // sent anywhere: the model only ever sees the names.
 
 import { useEffect, useState } from 'react';
-import { isValidSecret, MIN_SECRET_LENGTH, type Secrets } from '../background/secrets/redact';
+import { isValidSecret, MIN_SECRET_LENGTH, normalizeSecretName, type Secrets } from '../background/secrets/redact';
 import { t, type Key, type Lang } from '../i18n';
 import { Button, Card, Input } from './ui/components';
 
@@ -28,7 +28,7 @@ export function SecretsSection({ lang }: { lang: Lang }) {
     setSecrets(next);
   };
   const save = async () => {
-    const key = name.trim();
+    const key = normalizeSecretName(name);
     if (!isValidSecret(key, value)) return setInvalid(true);
     setInvalid(false);
     await store({ ...(await read()), [key]: value });
@@ -71,7 +71,9 @@ export function SecretsSection({ lang }: { lang: Lang }) {
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && void save()}
           />
-          {invalid && <p className="text-[13px] text-destructive">{tr('secretInvalid').replace('{n}', String(MIN_SECRET_LENGTH))}</p>}
+          {name && normalizeSecretName(name) !== name.trim() && <p className="text-[13px] text-muted-foreground">{tr('secretNameAs')} <code className="font-mono">{normalizeSecretName(name)}</code></p>}
+          {value.length > 0 && value.length < MIN_SECRET_LENGTH && <p className="text-[13px] text-muted-foreground">{tr('secretShort')}</p>}
+          {invalid && <p className="text-[13px] text-destructive">{tr('secretInvalid')}</p>}
           <Button id="secret-save" size="sm" onClick={() => void save()}>
             {tr('secretSave')}
           </Button>

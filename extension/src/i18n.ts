@@ -105,7 +105,9 @@ const en = {
   secretValue: 'Value',
   secretSave: 'Save secret',
   secretDelete: 'Delete',
-  secretInvalid: 'Use a name of letters, digits, _ . - and a value of at least {n} characters.',
+  secretInvalid: 'Enter a name and a value.',
+  secretNameAs: 'Saved as',
+  secretShort: 'Very short values are typed and hidden on screenshots, but can’t be hidden in page text the AI reads.',
 };
 
 const vi: typeof en = {
@@ -209,7 +211,9 @@ const vi: typeof en = {
   secretValue: 'Giá trị',
   secretSave: 'Lưu',
   secretDelete: 'Xóa',
-  secretInvalid: 'Tên gồm chữ, số, _ . - và giá trị từ {n} ký tự trở lên.',
+  secretInvalid: 'Nhập tên và giá trị.',
+  secretNameAs: 'Sẽ lưu với tên',
+  secretShort: 'Giá trị rất ngắn vẫn được tự điền và che trên ảnh chụp, nhưng không che được trong chữ trên trang mà AI đọc.',
 };
 
 export type Key = keyof typeof en;

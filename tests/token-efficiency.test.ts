@@ -6,7 +6,7 @@ import { cutPoint, limitFor, NOTE_RESERVE, readChunk, truncateWithHandle } from 
 import { Baselines } from '../extension/src/background/snapshot/baselines';
 import { diffSnapshots, formatDiff } from '../extension/src/background/snapshot/diff';
 import { linesWithin, planSnapshot } from '../extension/src/background/snapshot/render';
-import { hasPlaceholder, isValidSecret, redactDeep, redactSecrets, substituteSecrets } from '../extension/src/background/secrets/redact';
+import { hasPlaceholder, isValidSecret, normalizeSecretName, redactDeep, redactSecrets, substituteSecrets } from '../extension/src/background/secrets/redact';
 import { applyParams, hasLocator, LOCATOR_KEY, mapRefs, parametrize, resolveLocators, stepLabel } from '../extension/src/background/workflows/args';
 import { type Candidate, framePathOf, type Locator, MATCH_THRESHOLD, pickBest, scoreMatch, similarity, urlPath } from '../extension/src/locator';
 import { CORE_TOOL_NAMES, MAX_OUTPUT_CHARS, parseProfile, TOOLS, toolsForProfile } from '../shared/tools';
@@ -249,7 +249,9 @@ describe('secrets', () => {
     expect(isValidSecret('GITHUB_PW', 'abcd')).toBe(true);
     expect(isValidSecret('bad name', 'abcd')).toBe(false);
     expect(isValidSecret('', 'abcd')).toBe(false);
-    expect(isValidSecret('OK', 'ab')).toBe(false);
+    expect(isValidSecret('OK', 'ab')).toBe(true); // short values are allowed (typed, not text-redacted)
+    expect(isValidSecret('OK', '')).toBe(false);
+    expect(normalizeSecretName('mật khẩu Gmail đỏ')).toBe('mat_khau_Gmail_do');
   });
 });
 
