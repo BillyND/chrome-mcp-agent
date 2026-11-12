@@ -116,6 +116,36 @@ for (const mode of ['light', 'dark']) {
 }
 await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'logout' }));
 await ctx.close();
+
+// A short video of the real cursor: gliding between targets, clicking, and swaying while it waits.
+const videoDir = fs.mkdtempSync(path.join(os.tmpdir(), 'uip-video-'));
+const vctx = await chromium.launchPersistentContext(fs.mkdtempSync(path.join(os.tmpdir(), 'uip-')), {
+  channel: 'chromium',
+  headless: true,
+  args: [`--disable-extensions-except=${ext}`, `--load-extension=${ext}`],
+  viewport: { width: 640, height: 400 },
+  recordVideo: { dir: videoDir, size: { width: 640, height: 400 } },
+});
+const vsw = vctx.serviceWorkers()[0] ?? (await vctx.waitForEvent('serviceworker'));
+await vsw.evaluate(() => chrome.storage.local.set({ prefs: { lang: 'vi', theme: 'light' } }));
+const demo = vctx.pages()[0] ?? (await vctx.newPage());
+for (const mode of ['light', 'dark']) {
+  const url = `http://localhost:4960/${mode}`;
+  await demo.goto(url);
+  await demo.waitForTimeout(500);
+  const tabId = await vsw.evaluate(async (u) => (await chrome.tabs.query({ url: u }))[0].id, url);
+  const act = (action) => vsw.evaluate(async ({ tabId, action }) => chrome.tabs.sendMessage(tabId, { cmd: 'overlay', action }, { frameId: 0 }), { tabId, action });
+  await act({ type: 'show', label: '', paused: false });
+  for (const [x, y, rest] of [[60, 140, 3500], [420, 90, 1200], [300, 300, 3500], [60, 140, 1500]]) {
+    await act({ type: 'move', x, y, durationMs: 650 });
+    await act({ type: 'click', x, y });
+    await demo.waitForTimeout(rest);
+  }
+}
+const videoPath = await demo.video().path();
+await vctx.close();
+fs.copyFileSync(videoPath, path.join(out, 'cursor-demo.webm'));
+shots.unshift({ group: 'Con trỏ (video)', title: 'Con trỏ thật: lướt tới, bấm, rồi lắc nhẹ khi đứng yên · trang sáng và tối', file: 'cursor-demo.webm', width: 640, video: true });
 srv.close();
 
 // Web pages served by the gateway.
@@ -156,10 +186,10 @@ nav{display:flex;gap:6px;flex-wrap:wrap;position:sticky;top:0;background:var(--b
 nav a{color:var(--fg);text-decoration:none;border:1px solid var(--border);border-radius:999px;padding:6px 12px;font-size:13px;background:var(--card)}
 h2{font-size:18px;margin:28px 0 12px}.grid{display:flex;flex-wrap:wrap;gap:16px;align-items:flex-start}
 figure{margin:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;max-width:100%}
-figure img{display:block;max-width:100%;height:auto;border-radius:8px}figcaption{color:var(--muted);font-size:13px;margin-top:8px}
+figure img,figure video{display:block;max-width:100%;height:auto;border-radius:8px}figcaption{color:var(--muted);font-size:13px;margin-top:8px}
 </style></head><body><main><h1>Helmsman — xem trước giao diện</h1><p class="sub">Chụp từ bản đang chạy (${new Date().toLocaleString('vi-VN', { timeZone: 'Asia/Saigon' })}).</p>
 <nav>${groups.map((g) => `<a href="#${encodeURIComponent(g)}">${esc(g)}</a>`).join('')}</nav>
-${groups.map((g) => `<h2 id="${encodeURIComponent(g)}">${esc(g)}</h2><div class="grid">${shots.filter((s) => s.group === g).map((s) => `<figure style="width:${Math.min(s.width, 1100) / (s.width > 600 ? 1 : 1)}px"><img loading="lazy" src="${s.file}" alt="${esc(s.title)}"><figcaption>${esc(s.title)}</figcaption></figure>`).join('')}</div>`).join('')}
+${groups.map((g) => `<h2 id="${encodeURIComponent(g)}">${esc(g)}</h2><div class="grid">${shots.filter((s) => s.group === g).map((s) => `<figure style="width:${Math.min(s.width, 1100) / (s.width > 600 ? 1 : 1)}px">${s.video ? `<video src="${s.file}" autoplay loop muted playsinline controls></video>` : `<img loading="lazy" src="${s.file}" alt="${esc(s.title)}">`}<figcaption>${esc(s.title)}</figcaption></figure>`).join('')}</div>`).join('')}
 </main></body></html>`;
 fs.writeFileSync(path.join(out, 'index.html'), html);
 console.log(`Wrote ${shots.length} screenshots to worker/public/preview/`);
