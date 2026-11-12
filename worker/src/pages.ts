@@ -196,7 +196,7 @@ export function landingPage(publicUrl: string): string {
     'Helmsman',
     `<section class="hero"><h1>Helmsman</h1>
 <p class="muted">${bi('Cho ChatGPT, Claude và các AI khác dùng Chrome của bạn: đọc trang, bấm, gõ, điền form.', 'Let ChatGPT, Claude and other AI assistants use your Chrome: read pages, click, type and fill forms.')}</p>
-${DOWNLOAD}</section>
+</section>
 <div class="card"><ol class="steps">
 ${step(bi('Cài extension', 'Install the extension'), bi('Tải file zip rồi giải nén. Mở <code>chrome://extensions</code>, bật <b>Developer mode</b>, bấm <b>Load unpacked</b> và chọn thư mục đó.', 'Download the zip and unzip it. Open <code>chrome://extensions</code>, turn on <b>Developer mode</b>, click <b>Load unpacked</b> and pick the folder.'), DOWNLOAD)}
 </ol></div>
