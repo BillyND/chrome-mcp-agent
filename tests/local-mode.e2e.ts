@@ -188,7 +188,8 @@ test.describe('local mode in Chromium', () => {
   test('local mode works without a cloud account: waits for the server, then connects', async () => {
     // No account yet: the popup still offers the cloud Connect button, but nothing forces the user to click it.
     await expect(popup.locator('#login')).toBeVisible();
-    await popup.locator('#local-enabled').click();
+    // Local mode is always on: open its setup section to see the status and the client config.
+    await popup.locator('#local button').first().click();
     await expect(localStatus()).toHaveAttribute('data-status', 'connecting');
     await expect(localStatus()).toContainText('Waiting for local server');
 
@@ -281,11 +282,4 @@ test.describe('local mode in Chromium', () => {
     await expect(localStatus()).toHaveAttribute('data-status', 'connected', { timeout: 20_000 });
   });
 
-  test('turning local mode off disconnects it while the cloud keeps working', async () => {
-    await popup.locator('#local-enabled').click();
-    await expect(localStatus()).toHaveCount(0);
-    await expect(popup.locator('#local-enabled')).toHaveAttribute('aria-checked', 'false');
-    expect((await cloud('browser_tabs', { action: 'list' })).isError).toBeFalsy();
-    await expect(popup.locator('#status-text')).toHaveText('Connected');
-  });
 });

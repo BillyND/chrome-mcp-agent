@@ -10,6 +10,11 @@ export async function overlay(tabId: number, action: OverlayAction) {
   await frameCall(tabId, 0, { cmd: 'overlay', action }, 3000).catch(() => {});
 }
 
+/** Removes the cursor and bar (Stop). */
+export async function hideAgentBar(tabId: number) {
+  await overlay(tabId, { type: 'hide' });
+}
+
 export async function showAgentBar(tabId: number, label: string) {
   await overlay(tabId, { type: 'show', label, paused: state.paused, cursor: lastCursor.get(tabId) });
 }

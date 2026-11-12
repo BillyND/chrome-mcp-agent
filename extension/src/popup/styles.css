@@ -90,6 +90,26 @@
   }
   /* Fixed width only for the toolbar popup; extension pages (audit) use the full window. */
   body.popup {
-    width: 360px;
+    width: 400px;
+  }
+  /* Thin rounded scrollbar in the zinc palette (light and dark). */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border: 3px solid var(--background);
+    border-radius: 999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--muted-foreground);
   }
 }

@@ -40,10 +40,15 @@ const groupsInChrome = () =>
     return groups.map((g) => ({ id: g.id, title: g.title, color: g.color, tabs: tabs.filter((t) => t.groupId === g.id).map((t) => t.id) }));
   });
 
-async function popupSwitch(): Promise<{ toggle: () => Promise<void>; close: () => Promise<void> }> {
+/** Sends the on-page Stop (ends the current task) and the "resume" that clears its grace window. */
+async function stopControls(): Promise<{ stop: () => Promise<void>; resume: () => Promise<void>; close: () => Promise<void> }> {
   const popup = await h.ctx.newPage();
   await popup.goto(`chrome-extension://${new URL(h.sw.url()).host}/popup.html`);
-  return { toggle: () => popup.locator('#enabled').click(), close: () => popup.close() };
+  return {
+    stop: () => popup.evaluate(() => chrome.runtime.sendMessage({ type: 'stop' })),
+    resume: () => popup.evaluate(() => chrome.runtime.sendMessage({ type: 'resume' })),
+    close: () => popup.close(),
+  };
 }
 
 test.describe.configure({ mode: 'serial' });
@@ -177,18 +182,18 @@ test('Stop aborts running and queued calls on every tab, then work resumes', asy
   await sleep(400);
   const queued = call('browser_snapshot', {}, A); // waits behind A's long wait
   await sleep(1200);
-  const popup = await popupSwitch();
+  const popup = await stopControls();
   const stoppedAt = Date.now();
-  await popup.toggle();
+  await popup.stop();
   const results = await Promise.all([...running, queued]);
   expect(Date.now() - stoppedAt).toBeLessThan(10_000);
   for (const r of results) {
     expect(r.isError).toBe(true);
     expect(r.text).toContain('pressed Stop');
   }
-  // While paused nothing runs, whichever agent asks.
+  // Right after Stop nothing runs, whichever agent asks, so lined-up steps are dropped.
   expect((await call('browser_snapshot', {}, B)).isError).toBe(true);
-  await popup.toggle();
+  await popup.resume();
   await sleep(300);
   const [ra, rb] = await Promise.all([call('browser_snapshot', {}, A), call('browser_snapshot', {}, B)]);
   expect(ra.isError, ra.text).toBeFalsy();

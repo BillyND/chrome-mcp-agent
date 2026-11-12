@@ -32,10 +32,10 @@ import { selectionTools } from './selection';
 import { snapshotTools } from './snapshot';
 import { tabsTools } from './tabs';
 import { resolveTab } from './tab';
-import { STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
+import { justStopped, PAUSED, STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
 import { waitTools } from './wait';
 
-export { showAgentBar } from './overlay';
+export { hideAgentBar, showAgentBar } from './overlay';
 
 const MAX_PARALLEL = 6;
 
@@ -99,7 +99,8 @@ async function execute(
   record: boolean,
 ): Promise<Executed> {
   await pausedLoaded;
-  if (state.paused) return failure(STOPPED);
+  if (state.paused) return failure(PAUSED);
+  if (justStopped()) return failure(STOPPED);
   const spec = TOOLS[name];
   if (!spec) return failure(`Unknown tool ${name}.`);
 
@@ -119,7 +120,8 @@ async function execute(
     }
     const targets = targetUrlsOf(name, input);
     const content = await scheduler.run(lane, async () => {
-      if (state.paused || signal.aborted) throw new ToolError(STOPPED);
+      if (state.paused) throw new ToolError(PAUSED);
+      if (signal.aborted) throw new ToolError(STOPPED);
       if (spec.scope === 'tab') setRunningAgent(ctx.tabId, agent);
       // Site rules come first: nothing touches the tab, or opens a target URL, before they pass.
       // A tab sitting on a blocked site may still be navigated away.

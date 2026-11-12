@@ -18,6 +18,8 @@ const LOG_LIMIT = 2000;
 
 export const state = {
   status: 'signed-out' as ConnectionStatus,
+  /** Until this time, calls fail with the Stop message so the agent ends its current turn. */
+  stoppedUntil: 0,
   /** Error code the popup translates (see popup i18n `err_*`). */
   lastError: undefined as string | undefined,
   /** The "Allow AI control" switch is off: every tool call fails until the user turns it back on. Persisted. */
@@ -50,14 +52,15 @@ export async function setAccount(account: Account | null): Promise<void> {
 }
 
 /** Resolves once the persisted pause flag has been read after a service-worker start. */
-export const pausedLoaded: Promise<void> = chrome.storage.local.get('paused').then(({ paused }) => {
-  state.paused = paused === true;
+// AI control is always on now (Stop ends a task instead); clear any pause saved by older versions.
+export const pausedLoaded: Promise<void> = chrome.storage.local.remove('paused').then(() => {
+  state.paused = false;
 });
 
 /** Resolves once the persisted local-mode flag has been read after a service-worker start. */
-export const localLoaded: Promise<void> = chrome.storage.local.get('localMode').then(({ localMode }) => {
-  state.local.enabled = localMode === true;
-  if (!state.local.enabled) state.local.status = 'off';
+// Local mode is always on: the extension quietly waits for a local server on 127.0.0.1.
+export const localLoaded: Promise<void> = Promise.resolve().then(() => {
+  state.local.enabled = true;
 });
 
 export async function setLocalEnabled(enabled: boolean): Promise<void> {

@@ -11,7 +11,7 @@ import { normalizeRuleHost } from './policy/site-rules';
 import { getSettings, setRule, setScriptsEverywhere, sitesView } from './policy/store';
 import { GATEWAY_URL, clearActivity, getAccount, getAgentTab, logActivity, notify, popupState, setAccount, setPaused, setStatus, state } from './state';
 import { agentLabel, DEFAULT_AGENT } from './tools/agent-id';
-import { runTool, showAgentBar } from './tools';
+import { hideAgentBar, runTool, showAgentBar } from './tools';
 
 const KEEPALIVE_ALARM = 'keepalive';
 
@@ -72,7 +72,22 @@ async function register(password = ''): Promise<void> {
   await cloud.reconnectNow();
 }
 
+/** Window after Stop during which new calls are refused, so the agent drops its queued steps. */
+const STOP_GRACE_MS = 8_000;
+
+/** On-page Stop: cancel what is running and end this task, without turning the agent off. */
 async function stop() {
+  state.stoppedUntil = Date.now() + STOP_GRACE_MS;
+  state.abort.abort();
+  state.abort = new AbortController();
+  const tabId = await getAgentTab();
+  if (tabId !== undefined) await hideAgentBar(tabId).catch(() => {});
+  await detachAll();
+  notify();
+}
+
+/** Popup switch off: cancel everything and refuse calls until it is turned back on. */
+async function pause() {
   await setPaused(true);
   state.abort.abort();
   state.abort = new AbortController();
@@ -83,6 +98,7 @@ async function stop() {
 }
 
 async function resume() {
+  state.stoppedUntil = 0;
   await setPaused(false);
   const tabId = await getAgentTab();
   if (tabId !== undefined) await showAgentBar(tabId, 'Sẵn sàng').catch(() => {});
@@ -132,6 +148,9 @@ chrome.runtime.onMessage.addListener((msg: RuntimeMessage, _sender, sendResponse
       return false;
     case 'stop':
       void stop();
+      return false;
+    case 'pause':
+      void pause();
       return false;
     case 'resume':
       void resume();

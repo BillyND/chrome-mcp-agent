@@ -4,7 +4,7 @@ import { getPrefs, isDark, setPrefs, t, type Key, type Prefs } from '../i18n';
 import type { PopupState, RuntimeMessage } from '../messages';
 import { PendingPrompts, SitesSection } from './sites-section';
 import { SecretsSection } from './secrets-section';
-import { Badge, Button, Card, Input, Switch, ToggleGroup, ToggleGroupItem } from './ui/components';
+import { Badge, Button, Card, Input, ToggleGroup, ToggleGroupItem, Collapsible } from './ui/components';
 import { cn } from './ui/utils';
 
 const send = <T = unknown,>(msg: RuntimeMessage) => chrome.runtime.sendMessage(msg) as Promise<T>;
@@ -153,7 +153,7 @@ function App() {
   };
 
   return (
-    <div className="flex flex-col gap-3 p-3.5">
+    <div className="flex flex-col gap-3 p-4">
       <header className="flex items-center gap-2">
         <div className="grid size-6.5 place-items-center rounded-md bg-primary text-primary-foreground [&_svg]:size-4">{Icon.logo}</div>
         <b className="flex-1 text-[15px] font-semibold">Helmsman</b>
@@ -220,45 +220,38 @@ function App() {
               {tr('useHere')}
             </Button>
           )}
+          {/* Same slot as Connect when signed out. */}
+          <Button
+            id="logout"
+            variant="outline"
+            className="w-full"
+            disabled={pending === 'logout'}
+            aria-busy={pending === 'logout'}
+            onClick={() => {
+              setPending('logout');
+              void send({ type: 'logout' });
+            }}
+          >
+            {pending === 'logout' && <Spinner />}
+            {pending === 'logout' ? tr('disconnecting') : tr('disconnect')}
+          </Button>
         </section>
       )}
 
-      {active && (
-        <Card className="flex items-center justify-between">
-          <label htmlFor="enabled" className="text-[15px] font-medium">
-            {tr('allow')}
-          </label>
-          <Switch id="enabled" checked={!s.paused} onCheckedChange={(on) => void send({ type: on ? 'resume' : 'stop' })} />
-        </Card>
-      )}
 
-      <Card id="local" className="flex flex-col gap-2">
+      <Collapsible id="local" title={tr('localMode')}>
+        <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
+          <i className={cn('size-1.5 rounded-full', DOT[s.local.status])} />
+          {localText}
+        </span>
+        <div className="text-[13px] text-muted-foreground">{tr('localHint')}</div>
         <div className="flex items-center justify-between gap-2">
-          <label htmlFor="local-enabled" className="text-[15px] font-medium">
-            {tr('localMode')}
-          </label>
-          <div className="flex items-center gap-2">
-            {s.local.enabled && (
-              <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
-                <i className={cn('size-1.5 rounded-full', DOT[s.local.status])} />
-                {localText}
-              </span>
-            )}
-            <Switch id="local-enabled" checked={s.local.enabled} onCheckedChange={(enabled) => void send({ type: 'set-local', enabled })} />
-          </div>
+          <code id="local-config" className="min-w-0 truncate font-mono text-[13px]" title={snippet}>
+            {snippet}
+          </code>
+          <CopyButton value={snippet} label={tr('copy')} />
         </div>
-        {s.local.enabled && (
-          <>
-            <div className="text-[13px] text-muted-foreground">{tr('localHint')}</div>
-            <div className="flex items-center justify-between gap-2">
-              <code id="local-config" className="min-w-0 truncate font-mono text-[13px]" title={snippet}>
-                {snippet}
-              </code>
-              <CopyButton value={snippet} label={tr('copy')} />
-            </div>
-          </>
-        )}
-      </Card>
+      </Collapsible>
 
       <SitesSection s={s} lang={prefs.lang} />
       <SecretsSection lang={prefs.lang} />
@@ -276,22 +269,6 @@ function App() {
         <Button id="open-audit" variant="link" size="sm" className="ml-auto" onClick={() => void send({ type: 'open-audit' })}>
           {tr('audit')}
         </Button>
-        {signedIn && (
-          <Button
-            id="logout"
-            variant="link"
-            size="sm"
-            disabled={pending === 'logout'}
-            aria-busy={pending === 'logout'}
-            onClick={() => {
-              setPending('logout');
-              void send({ type: 'logout' });
-            }}
-          >
-            {pending === 'logout' && <Spinner />}
-            {pending === 'logout' ? tr('disconnecting') : tr('disconnect')}
-          </Button>
-        )}
       </footer>
     </div>
   );

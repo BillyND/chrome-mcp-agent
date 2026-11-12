@@ -124,7 +124,10 @@ export type FrameResponse<T = unknown> = { ok: true; value: T } | { ok: false; e
 /** content -> background (runtime messages). */
 export type RuntimeMessage =
   | { type: 'frame-identified'; nonce: string; offset: { x: number; y: number }; iframeRef: string }
+  /** On-page Stop: ends the current task only; the next request works normally. */
   | { type: 'stop' }
+  /** Popup switch off: no agent may act until it is turned back on. */
+  | { type: 'pause' }
   | { type: 'resume' }
   | { type: 'connect'; password?: string }
   | { type: 'logout' }

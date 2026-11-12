@@ -38,7 +38,11 @@ export class ToolError extends Error {}
 /** A failure whose message Helmsman wrote itself (policy refusals, the user's answers); it never quotes a page, so it is not wrapped as untrusted. */
 export class TrustedError extends ToolError {}
 
-export const STOPPED = 'The user pressed Stop in Chrome. Stop working and ask the user how to continue.';
+export const STOPPED = 'The user pressed Stop in Chrome: this task is over. Do not call any more browser tools now; end your turn and wait for the user. If they ask again later, continue normally.';
+export const PAUSED = 'AI control is turned off in the Helmsman popup. Tell the user to turn on "Allow AI control" if they want you to continue.';
+
+/** True right after Stop, long enough to catch the calls the agent already had lined up. */
+export const justStopped = () => Date.now() < state.stoppedUntil;
 
 export const text = (t: string): ToolContent[] => [{ type: 'text', text: t }];
 export const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -46,5 +50,6 @@ export const isMac = navigator.userAgent.includes('Mac');
 
 /** Throws when the user pressed Stop; call between steps of long operations. */
 export function checkAbort(ctx: Pick<ToolCtx, 'signal'>) {
-  if (state.paused || ctx.signal.aborted) throw new ToolError(STOPPED);
+  if (state.paused) throw new ToolError(PAUSED);
+  if (justStopped() || ctx.signal.aborted) throw new ToolError(STOPPED);
 }

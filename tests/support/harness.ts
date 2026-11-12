@@ -61,7 +61,13 @@ export async function startHarness({ approve = true }: { approve?: boolean } = {
   page.on('dialog', () => {});
   await page.goto(fixtures.url);
   // Reconnect with the stored account (the popup's "reconnect" message does the same).
-  await sw.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {}));
+  // A service worker cannot message itself: send "reconnect" from an extension page, like the popup does.
+  {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }));
+    await page.close();
+  }
   await expect.poll(async () => (await call('browser_tabs', { action: 'list' })).isError ?? false, { timeout: 30_000 }).toBe(false);
   return { ctx, sw, fixtures, stopApprover: approve ? autoApprove(ctx, sw) : () => {} };
 }

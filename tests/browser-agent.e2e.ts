@@ -53,7 +53,13 @@ test.beforeAll(async () => {
   page.on('dialog', () => {});
   await page.goto(fixtures.url);
   // Reconnect with the stored account (the popup's "reconnect" message does the same).
-  await sw.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }).catch(() => {}));
+  // A service worker cannot message itself: send "reconnect" from an extension page, like the popup does.
+  {
+    const page = await ctx.newPage();
+    await page.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
+    await page.evaluate(() => chrome.runtime.sendMessage({ type: 'reconnect' }));
+    await page.close();
+  }
   await expect.poll(async () => (await call('browser_tabs', { action: 'list' })).isError ?? false, { timeout: 30_000 }).toBe(false);
   // Sensitive clicks ("Gửi") wait for the user: this stand-in approves them like a click on the prompt would.
   stopApprover = autoApprove(ctx, sw);
@@ -206,9 +212,14 @@ test('the agent bar and cursor stay visible through screenshots, think time and 
   await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
   await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'stop' }));
   await expect.poll(overlayState).toBe('hidden');
-  await popup.evaluate(() => chrome.runtime.sendMessage({ type: 'resume' }));
   await popup.close();
-  await call('browser_snapshot');
+  // Stop ends this task: calls lined up right after it are refused, telling the agent to end its turn...
+  const refused = await call('browser_snapshot');
+  expect(refused.isError).toBe(true);
+  expect(refused.text).toContain('this task is over');
+  // ...and the next request works again without pressing anything.
+  await page.waitForTimeout(8_500);
+  expect((await call('browser_snapshot')).isError).toBeFalsy();
   await expect.poll(overlayState).toBe('shown');
 });
 
@@ -257,27 +268,17 @@ test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframe
   await call('browser_navigate', { url: fixtures.url });
 });
 
-test('Turning the control switch off pauses the agent until it is turned back on', async () => {
+test('the popup has no on/off switch: Disconnect sits where Connect was', async () => {
   const [sw] = ctx.serviceWorkers();
-  // Drive the same messages the popup and the in-page Stop button send.
   const popup = await ctx.newPage();
   await popup.goto(`chrome-extension://${new URL(sw.url()).host}/popup.html`);
-  const allow = popup.locator('#enabled');
-  await expect(allow).toHaveAttribute('aria-checked', 'true');
-  await allow.click();
-  await expect(allow).toHaveAttribute('aria-checked', 'false');
-  let r = await call('browser_snapshot');
-  expect(r.isError).toBe(true);
-  expect(r.text).toContain('pressed Stop');
-  await expect(popup.locator('#status-text')).toHaveText('Paused');
-  await popup.setViewportSize({ width: 360, height: 640 });
-  await popup.screenshot({ path: 'test-results/popup.png' });
-  await allow.click();
-  await expect(allow).toHaveAttribute('aria-checked', 'true');
   await expect(popup.locator('#status-text')).toHaveText('Connected');
+  await expect(popup.locator('#enabled')).toHaveCount(0);
+  await expect(popup.locator('#signed-in #logout')).toBeVisible();
+  await popup.setViewportSize({ width: 400, height: 640 });
+  await popup.screenshot({ path: 'test-results/popup.png' });
   await popup.close();
-  r = await call('browser_snapshot');
-  expect(r.isError, r.text).toBeFalsy();
+  expect((await call('browser_snapshot')).isError).toBeFalsy();
 });
 
 test('reconnects after the connection drops', async () => {
