@@ -67,7 +67,7 @@ export function Input({ className, ...props }: ComponentProps<'input'>) {
 }
 
 
-/** A ghost icon button that opens a small menu of choices, like shadcn's Popover with a command list; the current choice is checked. */
+/** An outline icon button that opens a small menu of choices, like shadcn's Popover with a command list; the current choice is checked. */
 export function MenuPopover<T extends string>({
   id,
   label,
@@ -87,7 +87,7 @@ export function MenuPopover<T extends string>({
   return (
     <PopoverPrimitive.Root open={open} onOpenChange={setOpen}>
       <PopoverPrimitive.Trigger asChild>
-        <Button id={id} variant="ghost" size="icon" aria-label={label} title={label}>
+        <Button id={id} variant="outline" size="icon" aria-label={label} title={label}>
           {trigger}
         </Button>
       </PopoverPrimitive.Trigger>

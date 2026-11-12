@@ -14,11 +14,11 @@ const THEMES = ['light', 'dark', 'system'] as const;
 export function PrefsMenu({ prefs }: { prefs: Prefs }) {
   const tr = (k: Key) => t(prefs.lang, k);
   return (
-    <div className="flex items-center">
+    <div className="flex items-center gap-1.5">
       <MenuPopover
         id="lang-menu"
         label={tr('language')}
-        trigger={<span className="text-xs font-semibold uppercase">{prefs.lang}</span>}
+        trigger={Icon.languages}
         value={prefs.lang}
         options={[...LANGS]}
         onSelect={(lang) => void setPrefs({ lang })}
