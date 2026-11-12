@@ -11,7 +11,17 @@ export async function overlay(tabId: number, action: OverlayAction) {
 }
 
 export async function showAgentBar(tabId: number, label: string) {
-  await overlay(tabId, { type: 'show', label, paused: state.paused });
+  await overlay(tabId, { type: 'show', label, paused: state.paused, cursor: lastCursor.get(tabId) });
+}
+
+/** Keeps the bar and cursor out of a capture, and always puts them back. */
+export async function withOverlayConcealed<T>(tabId: number, fn: () => Promise<T>): Promise<T> {
+  await overlay(tabId, { type: 'conceal' });
+  try {
+    return await fn();
+  } finally {
+    await overlay(tabId, { type: 'reveal' });
+  }
 }
 
 /** Glides the cursor to a point; the duration scales with the distance travelled. */

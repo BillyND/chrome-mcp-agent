@@ -5,7 +5,7 @@ import { send } from '../cdp';
 import { withSecretsMasked } from '../secrets/mask';
 import { downloadUrl } from './downloads';
 import { elementBox, locate } from './locate';
-import { overlay } from './overlay';
+import { withOverlayConcealed } from './overlay';
 import { pageHeader, prepareTab } from './tab';
 import { sleep, tabTool, text, ToolError } from './types';
 
@@ -85,9 +85,8 @@ export const captureTools = {
   browser_screenshot: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Chụp màn hình');
     const tabId = tab.id!;
-    await overlay(tabId, { type: 'hide' });
-    await sleep(120);
-    const [image, note] = await withSecretsMasked(tabId, async (): Promise<[ToolContent, string]> => {
+    const [image, note] = await withOverlayConcealed(tabId, () => withSecretsMasked(tabId, async (): Promise<[ToolContent, string]> => {
+      await sleep(120);
       if (args.ref) {
         const t = await locate(tabId, args.ref);
         const box = elementBox(t);
@@ -99,14 +98,14 @@ export const captureTools = {
       const image = await screenshot(tabId);
       const vp = (await send<any>(tabId, 'Page.getLayoutMetrics')).cssLayoutViewport;
       return [image, `Viewport ${Math.round(vp.clientWidth)}x${Math.round(vp.clientHeight)} px; image pixel (x,y) = browser_mouse_xy x,y (no ref).`];
-    });
+    }));
     return [{ type: 'text', text: `${await pageHeader(tab)}\n${note}` }, image];
   }),
 
   browser_pdf: tabTool(async (args, ctx) => {
     const tab = await prepareTab(ctx, 'Xuất PDF');
     const paper = PAPER[String(args.format ?? 'A4')] ?? PAPER.A4;
-    const pdf = await withSecretsMasked(tab.id!, () =>
+    const pdf = await withOverlayConcealed(tab.id!, () => withSecretsMasked(tab.id!, () =>
       send<{ data: string }>(tab.id!, 'Page.printToPDF', {
         landscape: !!args.landscape,
         printBackground: args.printBackground !== false,
@@ -115,7 +114,7 @@ export const captureTools = {
         pageRanges: args.pageRanges ? String(args.pageRanges) : undefined,
         preferCSSPageSize: true,
       }),
-    );
+    ));
     const bytes = Math.round((pdf.data.length * 3) / 4);
     const header = await pageHeader(tab);
     if (args.returnBase64) {

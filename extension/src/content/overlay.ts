@@ -94,18 +94,36 @@ function renderBar() {
   currentLabelKey = paused ? 'bar_paused' : 'bar_working';
   applyPrefs();
   p.bar.classList.add('on');
+  markState('shown');
+}
+
+/** Mirrors the visible state on the host element (`data-state`) for tests and debugging. */
+function markState(state: 'shown' | 'hidden' | 'concealed') {
+  host?.setAttribute('data-state', state);
 }
 
 function hideAll() {
+  markState('hidden');
   if (!parts) return;
   parts.bar.classList.remove('on');
   parts.cursor.classList.remove('on');
 }
 
+/**
+ * The bar and cursor stay up for a full minute after the last command: AI clients often think
+ * for 10–30 s between steps, and the user must keep seeing that an agent is in control.
+ */
+const IDLE_HIDE_MS = 60_000;
+
 function scheduleHide() {
   clearTimeout(hideTimer);
   if (paused) return;
-  hideTimer = setTimeout(hideAll, 8000);
+  hideTimer = setTimeout(hideAll, IDLE_HIDE_MS);
+}
+
+function setConcealed(concealed: boolean) {
+  if (parts) parts.layer.style.visibility = concealed ? 'hidden' : '';
+  markState(concealed ? 'concealed' : 'shown');
 }
 
 function place(x: number, y: number, tilt = 0, scale = 1) {
@@ -225,6 +243,18 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
     case 'show':
       paused = action.paused;
       renderBar();
+      // A navigation recreates the overlay: bring the cursor back where the agent left it.
+      if (action.cursor && !pos) {
+        pos = action.cursor;
+        place(pos.x, pos.y);
+        ensure().cursor.classList.add('on');
+      }
+      break;
+    case 'conceal':
+      setConcealed(true);
+      return;
+    case 'reveal':
+      setConcealed(false);
       break;
     case 'move':
       await moveTo(action.x, action.y, action.durationMs);
@@ -247,7 +277,6 @@ export async function runOverlay(action: OverlayAction): Promise<void> {
       endPrompt(action.id);
       return;
     case 'hide':
-      paused = false;
       hideAll();
       return;
   }

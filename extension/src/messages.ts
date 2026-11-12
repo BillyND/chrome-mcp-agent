@@ -106,10 +106,14 @@ export interface PromptSpec {
 }
 
 export type OverlayAction =
-  | { type: 'show'; label: string; paused: boolean }
+  /** `cursor` restores the agent cursor where it was before a navigation recreated the overlay. */
+  | { type: 'show'; label: string; paused: boolean; cursor?: { x: number; y: number } }
   | { type: 'move'; x: number; y: number; durationMs: number }
   | { type: 'click'; x: number; y: number }
   | { type: 'hide' }
+  /** Hide the overlay for a screenshot without changing its state; `reveal` brings it back. */
+  | { type: 'conceal' }
+  | { type: 'reveal' }
   | { type: 'avoid'; x: number; y: number }
   | { type: 'prompt'; prompt: PromptSpec }
   | { type: 'prompt-end'; id: string };

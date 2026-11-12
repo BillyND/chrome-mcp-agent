@@ -178,6 +178,29 @@ test('controls the page, shadow DOM, and iframes across origins', async () => {
   expect(r.text).toContain('new browser_snapshot');
 });
 
+test('the agent bar and cursor stay visible through screenshots, think time and navigation', async () => {
+  const page = ctx.pages()[0];
+  const overlayState = () => page.locator('helmsman-overlay').getAttribute('data-state');
+  const tabs = await call('browser_tabs', { action: 'list' });
+  const tabId = Number(/\[(\d+)\] Fixture Home/.exec(tabs.text)?.[1]);
+  await call('browser_tabs', { action: 'select', tabId });
+  const snap = (await call('browser_snapshot')).text;
+  await call('browser_click', { ref: refOf(snap, 'Tăng', 'button') });
+  await expect.poll(overlayState).toBe('shown');
+
+  // A screenshot hides the overlay only for the capture, then brings it back.
+  await call('browser_screenshot');
+  await expect.poll(overlayState).toBe('shown');
+
+  // AI clients think for a while between steps: the bar must not vanish after a few seconds.
+  await page.waitForTimeout(12_000);
+  expect(await overlayState()).toBe('shown');
+
+  // A navigation recreates the overlay; the next command shows it again right away.
+  await call('browser_navigate', { action: 'reload' });
+  await expect.poll(overlayState).toBe('shown');
+});
+
 test('canvas apps: Google-Sheets-like grid and paint canvas inside nested iframes', async () => {
   await call('browser_navigate', { url: `http://localhost:${FIXTURE_PORT}/sheet-host.html` });
   let snap = (await call('browser_snapshot')).text;
