@@ -23,7 +23,7 @@ const CSS = `
 .spot{position:absolute;left:-15.8px;top:-16.8px;width:40px;height:40px;border-radius:50%;pointer-events:none;background:radial-gradient(circle,rgba(24,24,27,.20) 0%,rgba(24,24,27,.08) 35%,transparent 70%);transition:background .3s ease}
 .sway{position:absolute;inset:0;transform-origin:4.2px 3.2px}
 /* At rest the cursor drifts slowly around its tip, like a hand resting on the mouse. */
-.cursor.idle .sway{animation:sway 3.6s ease-in-out infinite}
+.cursor.idle .sway{animation:sway 2.6s ease-in-out infinite}
 @keyframes sway{0%,100%{transform:translate(0,0) rotate(0)}25%{transform:translate(1.2px,-.8px) rotate(-3deg)}50%{transform:translate(.2px,-1.5px) rotate(0)}75%{transform:translate(-1.1px,-.6px) rotate(3deg)}}
 @media (prefers-reduced-motion:reduce){.cursor.idle .sway{animation:none}}
 .cursor.ondark .spot{background:radial-gradient(circle,rgba(255,255,255,.55) 0%,rgba(255,255,255,.18) 35%,transparent 70%)}
@@ -96,8 +96,9 @@ async function loadPrefs() {
 function applyPrefs() {
   if (!parts) return;
   parts.layer.classList.toggle('dark', isDark(prefs.theme));
-  parts.txt.textContent = t(prefs.lang, paused ? 'bar_paused' : currentLabelKey);
-  parts.btn.textContent = t(prefs.lang, paused ? 'resume' : 'stop');
+  // The agent bar is always in English: short, and the same for everyone watching the screen.
+  parts.txt.textContent = t('en', paused ? 'bar_paused' : currentLabelKey);
+  parts.btn.textContent = t('en', paused ? 'resume' : 'stop');
 }
 
 // The user can switch language or theme in the popup while a page is open.
