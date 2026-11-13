@@ -68,12 +68,13 @@ try {
   wrangler(['secret', 'bulk'], JSON.stringify(secrets));
   console.log(`set: ${Object.keys(secrets).join(', ')}`);
 
+  // Packed before the last deploy: the landing page serves the zip from the Worker's assets.
+  step('Packing the extension');
+  execFileSync('node', [path.join(root, 'scripts', 'pack-extension.mjs'), '--gateway', url], { stdio: 'inherit' });
+
   step('Redeploying with the final URL');
   out = wrangler(['deploy']);
   console.log(out.split('\n').filter((l) => /Deployed|workers\.dev|Current Version/i.test(l)).join('\n'));
-
-  step('Packing the extension');
-  execFileSync('node', [path.join(root, 'scripts', 'pack-extension.mjs'), '--gateway', url], { stdio: 'inherit' });
 
   console.log(`\n✅ Done.
    Landing page:   ${url}
