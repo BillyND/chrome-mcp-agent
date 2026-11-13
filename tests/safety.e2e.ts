@@ -366,6 +366,21 @@ test.describe('hard blocks', () => {
     await noPrompt();
   });
 
+  test('Full access lifts them: test cards, ID numbers and sign-up go through', async () => {
+    await setSettings({ accessMode: 'full' } as never);
+    let snap = await open('/checkout.html');
+    let r = await call('browser_type', { ref: refOf(snap.text, 'Số thẻ', 'textbox'), text: '4242424242424242' });
+    expect(r.isError, r.text).toBeFalsy();
+    expect(await valueOf('card')).toBe('4242424242424242');
+    r = await call('browser_type', { ref: refOf(snap.text, 'Số CCCD', 'textbox'), text: '012345678901' });
+    expect(r.isError, r.text).toBeFalsy();
+    expect(await valueOf('national')).toBe('012345678901');
+    snap = await open('/signup.html');
+    r = await call('browser_click', { ref: refOf(snap.text, 'Create account', 'button') });
+    expect(r.isError, r.text).toBeFalsy();
+    await noPrompt();
+  });
+
   test('credential-looking files are never uploaded', async () => {
     const snap = await open('/index.html');
     const ref = refOf(snap.text, 'Chọn file', 'button');
@@ -636,6 +651,26 @@ test.describe('what AI can do (access mode)', () => {
     await noPrompt();
     const script = await call('browser_evaluate', { script: 'return 1' });
     expect(script.isError, script.text).toBeFalsy();
+  });
+
+  test('Full access opens "ask" sites without asking, but blocked sites stay blocked', async () => {
+    await mode('full');
+    await setRules({ 'ask.localhost': 'ask', 'block.localhost': 'block' });
+    const r = await open('/index.html', 'ask.localhost');
+    expect(r.isError, r.text).toBeFalsy();
+    await noPrompt();
+    const blocked = await open('/index.html', 'block.localhost');
+    expect(blocked.isError).toBe(true);
+    expect(blocked.text).toMatch(/blocked by a rule/);
+  });
+
+  test('Full access tells the model to log in with saved secrets instead of handing the tab back', async () => {
+    await mode('full');
+    const r = await open('/login.html');
+    expect(r.text).toContain('browser_secrets_list');
+    expect(r.text).not.toContain('Do not type credentials');
+    const captcha = await open('/captcha.html');
+    expect(captcha.text).toContain('call browser_request_user');
   });
 
   test('Read only lets the AI open and read pages but refuses anything that acts', async () => {

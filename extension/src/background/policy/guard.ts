@@ -15,7 +15,9 @@ import { factsAtPoint } from './point-facts';
 import { classifyClick, classifyDrop, classifySubmit, classifyTyping, type Verdict } from './sensitive';
 import { decideSite, hostOf } from './site-rules';
 import { getGrant, getRules, getSettings, setGrant, setRule } from './store';
-import { HANDBACK_HINT, wrapUntrusted } from './untrusted';
+import { FULL_ACCESS_LOGIN_HINT, HANDBACK_HINT, wrapUntrusted } from './untrusted';
+
+const fullAccess = async (): Promise<boolean> => (await getSettings()).accessMode === 'full';
 
 function REFUSED(ctx: ToolCtx, message: string): never {
   ctx.audit.outcome = 'blocked';
@@ -79,7 +81,7 @@ async function grantGate(ctx: ToolCtx, kind: 'site', host: string, rule: string,
   }
 }
 
-/** Throws unless the agent may use `url`'s site. Unknown sites are allowed; "ask" sites prompt the user once per grant. */
+/** Throws unless the agent may use `url`'s site. Unknown sites are allowed; "ask" sites prompt the user once per grant, except under Full access. */
 export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
   const decision = decideSite(url, await getRules());
   if (!decision.host) return;
@@ -88,6 +90,7 @@ export async function siteGate(ctx: ToolCtx, url: string): Promise<void> {
   if (decision.action === 'block') {
     REFUSED(ctx, `${decision.host} is blocked by a rule the user set in Helmsman. Do not reach it another way (another tool or URL); tell the user, who can unblock it in the Helmsman popup under Sites.`);
   }
+  if (await fullAccess()) return;
   await grantGate(ctx, 'site', decision.host, decision.host, `access to ${decision.host}`);
 }
 
@@ -120,10 +123,10 @@ async function confirm(ctx: ToolCtx, tabId: number, verdict: Verdict): Promise<v
   ctx.notes.push(`The user approved this action (${verdict.category}: "${verdict.label}").`);
 }
 
-/** Refuses account creation and asks about sensitive clicks, for an element already described. */
+/** Refuses account creation (except under Full access) and asks about sensitive clicks, for an element already described. */
 async function checkClick(ctx: ToolCtx, tabId: number, facts: ElementFacts | null): Promise<void> {
   if (!facts) return;
-  const refusal = checkAccountCreation(facts);
+  const refusal = !(await fullAccess()) && checkAccountCreation(facts);
   if (refusal) REFUSED(ctx, refusal);
   await confirm(ctx, tabId, classifyClick(facts));
 }
@@ -147,14 +150,14 @@ export async function guardDrag(ctx: ToolCtx, tabId: number, from: Point, to: Po
 export async function guardTyping(ctx: ToolCtx, tabId: number, ref: string | undefined, value: string, submit = false): Promise<void> {
   const facts = await factsOf(tabId, ref);
   if (!facts) return;
-  const refusal = checkTyping(facts, value);
+  const refusal = !(await fullAccess()) && checkTyping(facts, value);
   if (refusal) REFUSED(ctx, refusal);
   await confirm(ctx, tabId, classifyTyping(facts));
   if (submit) await guardEnter(ctx, tabId, facts);
 }
 
 async function guardEnter(ctx: ToolCtx, tabId: number, facts: ElementFacts): Promise<void> {
-  const refusal = checkAccountCreation({ ...facts, isSubmit: facts.inForm });
+  const refusal = !(await fullAccess()) && checkAccountCreation({ ...facts, isSubmit: facts.inForm });
   if (refusal) REFUSED(ctx, refusal);
   await confirm(ctx, tabId, facts.isSubmit || facts.role === 'button' ? classifyClick(facts) : classifySubmit(facts));
 }
@@ -193,7 +196,7 @@ async function pageGates(tabId: number): Promise<PageGates> {
 
 /**
  * Last step of a tool run: re-checks the site the tab ended up on (a redirect or link may have led somewhere blocked)
- * and queues the login / CAPTCHA hint. The content itself is sealed later, see seal().
+ * and queues the login / CAPTCHA hint (under Full access a login is the agent's to do with saved secrets). The content itself is sealed later, see seal().
  */
 export async function finish(ctx: ToolCtx, tool: string, content: ToolContent[]): Promise<ToolContent[]> {
   if (ctx.tabId >= 0) {
@@ -202,7 +205,9 @@ export async function finish(ctx: ToolCtx, tool: string, content: ToolContent[])
     // A page blocked by an open JS dialog cannot answer frame calls; skip the check until the dialog is handled.
     if (tool !== 'browser_request_user' && tab && !sessionOf(ctx.tabId)?.dialog) {
       const gates = await pageGates(ctx.tabId);
-      if (gates.password || gates.captcha) ctx.notes.push(HANDBACK_HINT);
+      if (gates.password || gates.captcha) {
+        ctx.notes.push((await fullAccess()) && !gates.captcha ? FULL_ACCESS_LOGIN_HINT : HANDBACK_HINT);
+      }
     }
   }
   return content;

@@ -1,5 +1,5 @@
-// Things the agent must never do, whatever the user approves: type card numbers, security codes
-// or national ID numbers, create accounts, upload credential files. Pure functions returning the
+// Things the agent must not do: type card numbers, security codes or national ID numbers, create
+// accounts (all lifted under Full access, e.g. for test cards on dev sites), upload credential files. Pure functions returning the
 // refusal message the model sees, or null when the action is fine.
 
 import type { ElementFacts } from '../../messages';

@@ -20,3 +20,7 @@ export function looksLikeCaptcha(src: string, title = ''): boolean {
 
 export const HANDBACK_HINT =
   'Helmsman notice: this page asks for a login or a CAPTCHA. Do not type credentials or try to solve it yourself: call browser_request_user with a short reason so the user can do it, then continue with a new snapshot.';
+
+/** Full access: the user wants no questions, so a login is filled from the saved secrets instead of handed back. */
+export const FULL_ACCESS_LOGIN_HINT =
+  'Helmsman notice: this page asks for a login and the user chose Full access, so log in yourself: use the credentials the user gave in chat, or call browser_secrets_list and type the matching values with {{secret:NAME}} in browser_type or browser_fill_form. Only if neither fits, call browser_request_user.';
