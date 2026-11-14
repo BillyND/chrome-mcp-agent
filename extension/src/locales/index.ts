@@ -1,0 +1,10 @@
+export { de } from './de';
+export { es } from './es';
+export { fr } from './fr';
+export { id } from './id';
+export { ja } from './ja';
+export { ko } from './ko';
+export { pt } from './pt';
+export { ru } from './ru';
+export { th } from './th';
+export { zh } from './zh';

@@ -5,7 +5,7 @@ Let ChatGPT, Claude, Cursor or any MCP client drive **your own Chrome**: your re
 - **Cloud (free):** one MCP URL for ChatGPT, served from Cloudflare Workers.
 - **Local:** an MCP server on your machine for Claude Desktop, Cursor, Claude Code, VS Code and Codex CLI. No account needed.
 - **Parallel:** several AI agents at once, each in its own Chrome tab group.
-- **Safe by default:** site rules, on-page confirmation before sensitive actions, hard blocks, an audit log.
+- **User-controlled:** full browser access, an audit log, secret masking and a visible Stop button.
 
 Tiếng Việt: [hướng dẫn 10 phút](docs/san-sang.md) · [tài liệu đầy đủ](docs/huong-dan.md)
 
@@ -70,10 +70,10 @@ How it works:
 
 Everything is enforced in the extension, so it applies to every MCP client.
 
-- **What AI can do:** pick *Full access* (no confirmations and no hand-back for logins; it may also type card and ID numbers and sign up, e.g. on dev sites), *Ask first* (default: confirm sensitive actions) or *Read only* (open, read and capture pages; nothing that acts).
-- **Site rules:** allow, ask or block per site. No site is blocked by default; block any site yourself.
-- **On-page confirmation** (Ask first) before sending, deleting, paying, downloading or entering passwords. Page scripts (`browser_evaluate`) run on every site you haven't blocked, without asking. Only a real click can approve; the agent cannot press the button itself.
-- **Hard blocks:** card numbers, ID numbers, account creation and credential files.
+- **Full browser access:** the connected AI can navigate, read, click, type, upload and download across websites without permission-mode prompts.
+- **Human handback:** `browser_request_user` remains available when a person must log in, solve a CAPTCHA or complete another step themselves.
+- **Technical upload limit:** files over 25 MB are rejected.
+
 - **Prompt-injection hardening:** page content is wrapped as untrusted and hidden text is stripped.
 - **Secrets stay hidden:** values are redacted from every result, and screenshots and PDFs are masked.
 - **Audit log** of every call, kept locally and exportable.

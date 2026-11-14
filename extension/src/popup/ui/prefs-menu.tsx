@@ -1,14 +1,11 @@
 // Language and theme pickers for the header of every extension page: each is a small button that
 // opens a popover with its choices.
 
+import { LANGS } from '../../../../shared/langs';
 import { setPrefs, t, type Key, type Prefs } from '../../i18n';
 import { MenuPopover } from './components';
 import { Icon } from './icons';
 
-const LANGS = [
-  { value: 'en', label: 'English' },
-  { value: 'vi', label: 'Tiếng Việt' },
-] as const;
 const THEMES = ['light', 'dark', 'system'] as const;
 
 export function PrefsMenu({ prefs }: { prefs: Prefs }) {

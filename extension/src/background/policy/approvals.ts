@@ -18,8 +18,6 @@ interface Pending {
 const pending = new Map<string, Pending>();
 
 const CHOICES: Record<PromptKind, Choice[]> = {
-  site: ['always', 'once', 'decline'],
-  sensitive: ['approve', 'decline'],
   handback: ['done', 'decline'],
 };
 
@@ -60,7 +58,6 @@ export interface Question {
   agent: string;
   host: string;
   label?: string;
-  category?: string;
 }
 
 /**
@@ -68,7 +65,7 @@ export interface Question {
  * Throws the Stop message when the user pressed Stop meanwhile.
  */
 export async function ask(q: Question, signal: AbortSignal, timeoutMs: number): Promise<Choice | 'timeout'> {
-  const spec: PromptSpec = { id: crypto.randomUUID(), kind: q.kind, agent: q.agent, host: q.host, label: q.label ?? '', category: q.category ?? '', choices: CHOICES[q.kind] };
+  const spec: PromptSpec = { id: crypto.randomUUID(), kind: q.kind, agent: q.agent, host: q.host, label: q.label ?? '', choices: CHOICES[q.kind] };
   let onAbort = () => {};
   let timer: ReturnType<typeof setTimeout> | undefined;
   let entry: Pending | undefined;

@@ -1,7 +1,10 @@
-// UI strings (English and Vietnamese) and the user's language/theme preferences,
-// shared by the popup and the in-page overlay.
+// UI strings (English and Vietnamese here, the other languages in ./locales) and the user's language/theme
+// preferences, shared by the popup and the in-page overlay.
 
-export type Lang = 'en' | 'vi';
+import { isLang, matchLang, type Lang } from '../../shared/langs';
+import { de, es, fr, id, ja, ko, pt, ru, th, zh } from './locales';
+
+export type { Lang };
 export type Theme = 'light' | 'dark' | 'system';
 
 const en = {
@@ -29,19 +32,11 @@ const en = {
   paused: 'Paused',
   status_off: 'Off',
   localMode: 'Local mode',
-  access: 'Permissions',
-  site_rule: 'Rule',
   language: 'Language',
   theme: 'Theme',
   theme_light: 'Light',
   theme_dark: 'Dark',
   theme_system: 'System',
-  access_full: 'Full access',
-  access_ask: 'Ask first',
-  access_read: 'Read only',
-  access_full_hint: 'Does everything without asking, even sending, deleting or paying.',
-  access_ask_hint: 'Asks you before sending, deleting, paying or entering passwords.',
-  access_read_hint: 'Only opens and reads pages. No clicking or typing.',
   localWaiting: 'Waiting for local server',
   localHint: 'Add this to the MCP config of Claude Desktop, Cursor or another client:',
   err_offline: 'No internet connection.',
@@ -52,36 +47,10 @@ const en = {
   err_server: 'Server refused. Try again later.',
   bar_working: 'Agent is working',
   bar_paused: 'Agent paused',
-  prompt_site: '{agent} wants to use {host}',
-  prompt_site_detail: 'It can read and use pages on this site.',
-  prompt_sensitive: '{agent} wants to: {category}',
-  prompt_sensitive_detail: '“{label}” on {host}',
   prompt_handback: 'Agent needs you: {reason}',
   prompt_handback_detail: '{agent} on {host} is waiting. Press Done when you have finished.',
-  choice_always: 'Allow on this site',
-  choice_once: 'Just this once',
-  choice_approve: 'Approve',
   choice_done: 'Done',
-  choice_decline: 'Don’t allow',
   choice_cancel: 'Cancel',
-  cat_send: 'send or submit',
-  cat_purchase: 'buy or pay',
-  cat_delete: 'delete or remove',
-  cat_publish: 'publish or post',
-  cat_transfer: 'transfer money',
-  cat_download: 'download a file',
-  cat_password: 'type into a password field',
-  cat_upload: 'attach a file',
-  cat_permission: 'grant a permission',
-  cat_submit: 'submit a form',
-  sites: 'Sites',
-  sites_none: 'No rules yet',
-  site_allow: 'Allow',
-  site_ask: 'Ask',
-  site_block: 'Blocked',
-  site_remove: 'Remove',
-  site_add: 'example.com',
-  site_add_btn: 'Block',
   pending: 'Waiting for you',
   audit: 'Audit log',
   audit_title: 'Audit log',
@@ -139,19 +108,11 @@ const vi: typeof en = {
   paused: 'Đã dừng',
   status_off: 'Tắt',
   localMode: 'Chế độ cục bộ',
-  access: 'Quyền',
-  site_rule: 'Quy tắc',
   language: 'Ngôn ngữ',
   theme: 'Giao diện',
   theme_light: 'Sáng',
   theme_dark: 'Tối',
   theme_system: 'Theo hệ thống',
-  access_full: 'Toàn quyền',
-  access_ask: 'Hỏi trước',
-  access_read: 'Chỉ xem',
-  access_full_hint: 'Tự làm mọi việc, kể cả gửi, xoá hay thanh toán, không hỏi lại.',
-  access_ask_hint: 'Hỏi bạn trước khi gửi, xoá, thanh toán hay nhập mật khẩu.',
-  access_read_hint: 'Chỉ mở và đọc trang, không bấm hay gõ gì.',
   localWaiting: 'Đang chờ server cục bộ',
   localHint: 'Thêm đoạn này vào cấu hình MCP của Claude Desktop, Cursor hoặc client khác:',
   err_offline: 'Mất kết nối mạng.',
@@ -162,36 +123,10 @@ const vi: typeof en = {
   err_server: 'Máy chủ từ chối. Thử lại sau.',
   bar_working: 'Agent đang làm việc',
   bar_paused: 'Agent đã dừng',
-  prompt_site: '{agent} muốn dùng {host}',
-  prompt_site_detail: 'Agent sẽ đọc và thao tác trên các trang của trang web này.',
-  prompt_sensitive: '{agent} muốn: {category}',
-  prompt_sensitive_detail: '“{label}” trên {host}',
   prompt_handback: 'Agent cần bạn: {reason}',
   prompt_handback_detail: '{agent} trên {host} đang chờ. Bấm Xong khi bạn làm xong.',
-  choice_always: 'Cho phép trên trang này',
-  choice_once: 'Chỉ lần này',
-  choice_approve: 'Đồng ý',
   choice_done: 'Xong',
-  choice_decline: 'Không cho phép',
   choice_cancel: 'Huỷ',
-  cat_send: 'gửi hoặc nộp',
-  cat_purchase: 'mua hoặc thanh toán',
-  cat_delete: 'xoá hoặc gỡ',
-  cat_publish: 'đăng bài',
-  cat_transfer: 'chuyển tiền',
-  cat_download: 'tải một tệp xuống',
-  cat_password: 'gõ vào ô mật khẩu',
-  cat_upload: 'đính kèm một tệp',
-  cat_permission: 'cấp một quyền',
-  cat_submit: 'gửi một biểu mẫu',
-  sites: 'Trang web',
-  sites_none: 'Chưa có quy tắc',
-  site_allow: 'Cho phép',
-  site_ask: 'Hỏi',
-  site_block: 'Đã chặn',
-  site_remove: 'Xoá',
-  site_add: 'example.com',
-  site_add_btn: 'Chặn',
   pending: 'Đang chờ bạn',
   audit: 'Nhật ký kiểm tra',
   audit_title: 'Nhật ký kiểm tra',
@@ -225,7 +160,9 @@ const vi: typeof en = {
 };
 
 export type Key = keyof typeof en;
-const dict: Record<Lang, typeof en> = { en, vi };
+/** A full translation: the compiler flags any key a language is missing. */
+export type Strings = Record<Key, string>;
+const dict: Record<Lang, Strings> = { en, vi, zh, ja, ko, es, fr, de, pt, ru, id, th };
 
 export interface Prefs {
   lang: Lang;
@@ -253,8 +190,7 @@ async function storedPrefs(): Promise<Partial<Record<keyof Prefs, unknown>>> {
 
 export async function getPrefs(): Promise<Prefs> {
   const p = await storedPrefs();
-  const browserLang: Lang = (navigator.language || 'en').toLowerCase().startsWith('vi') ? 'vi' : 'en';
-  const lang = p.lang === 'en' || p.lang === 'vi' ? p.lang : browserLang;
+  const lang = isLang(p.lang) ? p.lang : matchLang(navigator.language);
   const theme = p.theme === 'dark' || p.theme === 'system' ? p.theme : 'light';
   return { lang, theme };
 }

@@ -257,7 +257,7 @@ async function showPrompt(spec: PromptSpec): Promise<void> {
   card.append(el('h4', '', title), el('p', '', detail));
   const row = el('div', 'row');
   const choiceButton = (choice: Choice) => {
-    const b = el('button', isPrimary(choice) ? 'primary' : '', choiceLabel(lang, spec, choice));
+    const b = el('button', isPrimary(choice) ? 'primary' : '', choiceLabel(lang, choice));
     b.addEventListener('click', (e) => {
       // Only a real click by the user answers; a page or script cannot synthesize one.
       if (!e.isTrusted) return;

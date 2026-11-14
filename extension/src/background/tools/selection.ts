@@ -3,7 +3,6 @@
 
 import { send } from '../cdp';
 import { callAllFrames, frameCall, parseRef } from '../frames';
-import { guardTyping } from '../policy/guard';
 import { fillTarget, typeText } from './input';
 import { locate } from './locate';
 import { afterAction } from './page-summary';
@@ -49,7 +48,6 @@ export const selectionTools = {
     if (action === 'paste') {
       const value = args.text !== undefined ? String(args.text) : clipboards.get(ctx.agent);
       if (value === undefined) throw new ToolError('Your clipboard is empty. Use action "copy" first or pass text.');
-      await guardTyping(ctx, tabId, args.ref ? String(args.ref) : undefined, value);
       if (args.ref) {
         const t = await locate(tabId, String(args.ref));
         await glide(tabId, t.x, t.y);

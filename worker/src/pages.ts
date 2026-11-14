@@ -3,15 +3,23 @@
 // (the same shadcn tokens and Tailwind classes as the popup) and /ui.js mounts the popup's language and
 // theme popovers into the header and switches the guide's tabs.
 
+import { LANG_CODES, type Lang } from '../../shared/langs';
 import { localCommand, localServer, localSnippet } from '../../shared/local-config';
 import { segmentedClass, segmentedItemClass } from '../../shared/ui-classes';
+import { PAGE_STRINGS } from './page-locales';
 
 export const escapeHtml = (value: string) =>
   value.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
-// Both languages are rendered; CSS shows the one matching <html lang>. That keeps the
-// consent form fully usable without JS.
-const bi = (vi: string, en: string) => `<span data-l="vi">${vi}</span><span data-l="en">${en}</span>`;
+// Every language is rendered; CSS shows the one matching <html lang>. That keeps the consent form fully
+// usable without JS. Copy is written in Vietnamese and English; other languages look up the English text
+// in ./page-locales and fall back to English when a phrase has no translation yet. Values that vary go in
+// `params` as {name} placeholders so the lookup key stays fixed.
+const bi = (vi: string, en: string, params: Record<string, string> = {}) =>
+  LANG_CODES.map((l: Lang) => {
+    const text = l === 'vi' ? vi : l === 'en' ? en : (PAGE_STRINGS[l][en] ?? en);
+    return `<span data-l="${l}">${text.replace(/\{(\w+)\}/g, (m, k: string) => params[k] ?? m)}</span>`;
+  }).join('');
 
 // Known server messages (Vietnamese) and their English counterpart.
 const EN: Record<string, string> = {
@@ -27,7 +35,7 @@ const known = (vi: string) => (EN[vi] ? bi(escapeHtml(vi), escapeHtml(EN[vi])) :
 
 // Page layout only; colors and radii come from the shared theme in /ui.css.
 const CSS = `
-html[lang=en] [data-l=vi],html[lang=vi] [data-l=en]{display:none}
+${LANG_CODES.map((l) => `html:not([lang=${l}]) [data-l=${l}]`).join(',')}{display:none}
 body{font:15px/1.6 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
 main{max-width:600px;margin:0 auto;padding:20px 16px 48px}
 header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:40px}
@@ -76,7 +84,7 @@ const LOGO = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke
 // Runs in <head> before paint so the saved language and theme apply without a flash (the keys are the
 // ones /ui.js reads and writes), and handles the copy buttons.
 const SCRIPT = `(function(){var d=document.documentElement,g=function(k){try{return localStorage.getItem(k)}catch(e){return null}};
-var l=g('cma-lang'),t=g('cma-theme');d.lang=l==='vi'||l==='en'?l:/^vi/i.test(navigator.language||'')?'vi':'en';
+var l=g('cma-lang'),t=g('cma-theme');var c=${JSON.stringify(LANG_CODES)},b=(navigator.language||'').toLowerCase().split('-')[0];d.lang=c.indexOf(l)>=0?l:c.indexOf(b)>=0?b:'en';
 d.classList.toggle('dark',t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches));
 document.addEventListener('click',function(e){var b=e.target.closest('button[data-copy]');if(!b)return;
 var el=document.getElementById(b.dataset.copy);navigator.clipboard.writeText(el.textContent).then(function(){b.classList.add('done');setTimeout(function(){b.classList.remove('done')},1500)})})})();`;
@@ -105,15 +113,11 @@ const GET_CODE = step(
 const PASTE_CODE = (client: string) =>
   step(
     bi('Dán mã kết nối', 'Paste the connection code'),
-    bi(`${client} mở trang của Helmsman: dán mã rồi bấm <b>Cho phép</b>.`, `${client} opens a Helmsman page: paste the code and click <b>Allow</b>.`),
+    bi('{client} mở trang của Helmsman: dán mã rồi bấm <b>Cho phép</b>.', '{client} opens a Helmsman page: paste the code and click <b>Allow</b>.', { client }),
   );
 const LOCAL_CHECK = step(
   bi('Kiểm tra kết nối', 'Check the connection'),
   bi('Mở popup Helmsman → <b>Chế độ cục bộ</b>: trạng thái chuyển sang <b>Đã kết nối</b> khi client chạy. Không cần tài khoản, cần Node 20+.', 'Open the Helmsman popup → <b>Local mode</b>: it shows <b>Connected</b> once the client runs. No account needed; requires Node 20+.'),
-);
-const HELMSMAN_FULL = tip(
-  'Không muốn Helmsman hỏi trước khi gửi, xoá hay thanh toán? Trong popup, mở <b>Quyền</b> và chọn <b>Toàn quyền</b>.',
-  'Don’t want Helmsman to ask before sending, deleting or paying? In the popup, open <b>Permissions</b> and pick <b>Full access</b>.',
 );
 
 interface Client {
@@ -136,7 +140,7 @@ ${step(bi('Bật Developer mode', 'Turn on Developer mode'), bi('ChatGPT → <b>
 ${step(bi('Tạo connector', 'Create the connector'), bi('Quay lại <b>Apps &amp; Connectors</b> → <b>Create</b>. Tên: <b>Helmsman</b>, Authentication: <b>OAuth</b>, dán địa chỉ MCP này, tick <b>I trust this application</b> rồi bấm <b>Create</b>.', 'Back in <b>Apps &amp; Connectors</b> → <b>Create</b>. Name: <b>Helmsman</b>, Authentication: <b>OAuth</b>, paste this MCP URL, tick <b>I trust this application</b> and click <b>Create</b>.'), copyBox(mcpUrl))}
 ${PASTE_CODE('ChatGPT')}
 ${step(bi('Dùng trong chat', 'Use it in a chat'), bi('Trong chat mới, bấm <b>+</b> → <b>More</b> → <b>Developer mode</b> và chọn <b>Helmsman</b>. Khi ChatGPT hỏi xác nhận một hành động, chọn cho phép; nếu có tuỳ chọn ghi nhớ, bật nó để không bị hỏi lại mỗi lần.', 'In a new chat, click <b>+</b> → <b>More</b> → <b>Developer mode</b> and pick <b>Helmsman</b>. When ChatGPT asks you to confirm an action, allow it; if it offers to remember the choice, turn that on so it stops asking every time.'))}
-</ol>${HELMSMAN_FULL}`,
+</ol>`,
     },
     {
       id: 'claude',
@@ -145,7 +149,7 @@ ${step(bi('Dùng trong chat', 'Use it in a chat'), bi('Trong chat mới, bấm <
 ${step(bi('Thêm connector', 'Add the connector'), bi('claude.ai hoặc Claude Desktop → <b>Settings</b> → <b>Connectors</b> → <b>Add custom connector</b>. Tên: <b>Helmsman</b>, dán địa chỉ MCP này rồi bấm <b>Add</b>.', 'claude.ai or Claude Desktop → <b>Settings</b> → <b>Connectors</b> → <b>Add custom connector</b>. Name: <b>Helmsman</b>, paste this MCP URL and click <b>Add</b>.'), copyBox(mcpUrl))}
 ${step(bi('Kết nối', 'Connect'), bi('Bấm <b>Connect</b> bên cạnh Helmsman. Claude mở trang của Helmsman: dán mã rồi bấm <b>Cho phép</b>.', 'Click <b>Connect</b> next to Helmsman. Claude opens a Helmsman page: paste the code and click <b>Allow</b>.'))}
 ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Settings</b> → <b>Connectors</b> → <b>Helmsman</b>, đặt quyền các tool là <b>Always allow</b> để Claude không hỏi trước mỗi lần dùng. Trong chat, bật Helmsman ở menu <b>Search and tools</b>.', 'In <b>Settings</b> → <b>Connectors</b> → <b>Helmsman</b>, set the tool permissions to <b>Always allow</b> so Claude stops asking before each use. In a chat, turn Helmsman on in the <b>Search and tools</b> menu.'))}
-</ol>${tip('Connector gắn với tài khoản Claude, nên dùng được cả trên claude.ai lẫn Claude Desktop.', 'The connector belongs to your Claude account, so it works in both claude.ai and Claude Desktop.')}${HELMSMAN_FULL}`,
+</ol>${tip('Connector gắn với tài khoản Claude, nên dùng được cả trên claude.ai lẫn Claude Desktop.', 'The connector belongs to your Claude account, so it works in both claude.ai and Claude Desktop.')}`,
     },
     {
       id: 'claude-code',
@@ -153,7 +157,7 @@ ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Settings<
       steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Chạy lệnh này trong terminal:', 'Run this in a terminal:'), copyBox(`claude mcp add helmsman -- ${command}`))}
 ${LOCAL_CHECK}
 ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Khi Claude Code hỏi dùng tool Helmsman, chọn <b>Yes, and don’t ask again</b>. Hoặc thêm <code>"mcp__helmsman"</code> vào <code>permissions.allow</code> trong <code>.claude/settings.json</code>.', 'When Claude Code asks to use a Helmsman tool, pick <b>Yes, and don’t ask again</b>. Or add <code>"mcp__helmsman"</code> to <code>permissions.allow</code> in <code>.claude/settings.json</code>.'))}
-</ol>${HELMSMAN_FULL}`,
+</ol>`,
     },
     {
       id: 'cursor',
@@ -161,7 +165,7 @@ ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Khi Claude Code h�
       steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('<b>Cursor Settings</b> → <b>MCP</b> → <b>Add new MCP server</b>, hoặc sửa <code>~/.cursor/mcp.json</code>, rồi dán:', '<b>Cursor Settings</b> → <b>MCP</b> → <b>Add new MCP server</b>, or edit <code>~/.cursor/mcp.json</code>, and paste:'), copyBox(localSnippet(publicUrl)))}
 ${LOCAL_CHECK}
 ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Cursor Settings</b> → <b>Agent</b>, bật chế độ tự chạy tool (auto-run) để không phải bấm <b>Run</b> cho từng lệnh.', 'In <b>Cursor Settings</b> → <b>Agent</b>, turn on auto-run for tools so you don’t have to click <b>Run</b> for each call.'))}
-</ol>${HELMSMAN_FULL}`,
+</ol>`,
     },
     {
       id: 'vscode',
@@ -169,14 +173,14 @@ ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Trong <b>Cursor Se
       steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Tạo <code>.vscode/mcp.json</code> (hoặc chạy <b>MCP: Add Server</b> trong Command Palette) với nội dung:', 'Create <code>.vscode/mcp.json</code> (or run <b>MCP: Add Server</b> from the Command Palette) with:'), copyBox(vscodeConfig))}
 ${LOCAL_CHECK}
 ${step(bi('Cho phép đầy đủ', 'Allow full access'), bi('Dùng Copilot Chat ở chế độ <b>Agent</b>. Khi được hỏi chạy tool Helmsman, mở menu cạnh nút <b>Continue</b> và chọn <b>Always allow</b>.', 'Use Copilot Chat in <b>Agent</b> mode. When asked to run a Helmsman tool, open the menu next to <b>Continue</b> and pick <b>Always allow</b>.'))}
-</ol>${HELMSMAN_FULL}`,
+</ol>`,
     },
     {
       id: 'codex',
       name: 'Codex',
       steps: `<ol class="steps">${step(bi('Thêm server', 'Add the server'), bi('Thêm vào <code>~/.codex/config.toml</code>:', 'Add to <code>~/.codex/config.toml</code>:'), copyBox(codexConfig))}
 ${LOCAL_CHECK}
-</ol>${HELMSMAN_FULL}`,
+</ol>`,
     },
   ];
 }
@@ -267,8 +271,8 @@ export function privacyPage(): string {
 
 <h2>${bi('3. Dữ liệu ở lại trên máy bạn', '3. What stays on your device')}</h2>
 <p>${bi(
-      'Lưu trong <code>chrome.storage.local</code> của trình duyệt, không bao giờ gửi đi: <b>kho bí mật</b> (tên và giá trị bạn nhập; model chỉ thấy tên, giá trị được che trong mọi kết quả tool), <b>nhật ký kiểm tra</b> (tối đa 2000 dòng, có nút xuất và xoá), <b>quy tắc theo trang</b>, tuỳ chọn giao diện/ngôn ngữ và các <b>quy trình đã lưu</b>.',
-      'Kept in the browser\'s <code>chrome.storage.local</code> and never sent anywhere: the <b>secrets vault</b> (names and values you enter; the model sees only names, and values are masked in every tool result), the <b>audit log</b> (up to 2000 entries, with export and clear buttons), <b>site rules</b>, interface preferences and <b>saved workflows</b>.',
+      'Lưu trong <code>chrome.storage.local</code> của trình duyệt, không bao giờ gửi đi: <b>kho bí mật</b> (tên và giá trị bạn nhập; model chỉ thấy tên, giá trị được che trong mọi kết quả tool), <b>nhật ký kiểm tra</b> (tối đa 2000 dòng, có nút xuất và xoá), tuỳ chọn giao diện/ngôn ngữ và các <b>quy trình đã lưu</b>.',
+      'Kept in the browser\'s <code>chrome.storage.local</code> and never sent anywhere: the <b>secrets vault</b> (names and values you enter; the model sees only names, and values are masked in every tool result), the <b>audit log</b> (up to 2000 entries, with export and clear buttons), interface preferences and <b>saved workflows</b>.',
     )}</p>
 
 <h2>${bi('4. Quyền của extension và mục đích', '4. Extension permissions and why')}</h2>
@@ -277,9 +281,9 @@ export function privacyPage(): string {
 <tr><th><code>tabs</code>, <code>tabGroups</code></th><td>${bi('Liệt kê, mở, đóng tab và gom tab của từng agent vào một nhóm riêng.', 'List, open and close tabs, and keep each agent\'s tabs in its own group.')}</td></tr>
 <tr><th><code>scripting</code>, <code>webNavigation</code></th><td>${bi('Đọc trang và iframe, theo dõi điều hướng.', 'Read pages and iframes and follow navigation.')}</td></tr>
 <tr><th><code>storage</code>, <code>alarms</code></th><td>${bi('Lưu cài đặt cục bộ; giữ kết nối và dọn phiên không dùng.', 'Keep local settings; keep the connection alive and clean up idle sessions.')}</td></tr>
-<tr><th><code>downloads</code></th><td>${bi('Tải file hoặc PDF khi AI yêu cầu và bạn cho phép.', 'Download files or PDFs when the AI asks and you allow it.')}</td></tr>
+<tr><th><code>downloads</code></th><td>${bi('Tải file hoặc PDF khi AI yêu cầu.', 'Download files or PDFs when the AI asks.')}</td></tr>
 <tr><th><code>cookies</code>, <code>history</code></th><td>${bi('Chỉ dùng khi AI gọi tool <code>browser_cookies</code> / <code>browser_history</code>; kết quả chỉ về client AI của bạn.', 'Used only when the AI calls <code>browser_cookies</code> / <code>browser_history</code>; results go only to your AI client.')}</td></tr>
-<tr><th>&lt;all_urls&gt;</th><td>${bi('AI có thể được yêu cầu làm việc trên bất kỳ trang nào. Bạn kiểm soát bằng quy tắc theo trang, mục Quyền, nút Dừng và hộp thoại xác nhận.', 'The AI may be asked to work on any site. You stay in control with site rules, Permissions, the Stop button and confirmation prompts.')}</td></tr>
+<tr><th>&lt;all_urls&gt;</th><td>${bi('AI có toàn quyền làm việc trên mọi trang, không cần hỏi lại. Bạn dừng nó bất cứ lúc nào bằng nút Dừng.', 'The AI has full access to work on any site without asking. You can stop it at any time with the Stop button.')}</td></tr>
 </table>
 <p>${bi('Extension không tải hay chạy mã từ xa; toàn bộ mã nằm trong gói cài đặt.', 'The extension loads and runs no remote code; all code ships in the package.')}</p>
 
@@ -297,8 +301,8 @@ export function privacyPage(): string {
 
 <h2>${bi('7. Bảo vệ người dùng', '7. Safeguards')}</h2>
 <p>${bi(
-      'Ở chế độ Hỏi trước, hành động nhạy cảm (gửi, thanh toán, xoá, tải lên…) luôn hỏi bạn; số thẻ và giấy tờ tuỳ thân bị chặn; chữ lấy từ trang được gắn nhãn là dữ liệu không đáng tin để chống prompt injection; nút <b>Dừng</b> trên trang kết thúc việc AI đang làm ngay lập tức, và mục <b>Quyền</b> cho bạn chọn Toàn quyền, Hỏi trước hoặc Chỉ xem.',
-      'In Ask first mode, sensitive actions (submit, pay, delete, upload…) ask you first; card numbers and ID numbers are blocked; page text is labelled untrusted to resist prompt injection; the <b>Stop</b> button on the page ends what the AI is doing at once, and <b>Permissions</b> lets you pick Full access, Ask first or Read only.',
+      'Helmsman luôn chạy với toàn quyền: AI tự làm mọi việc mà không hỏi lại. Chữ lấy từ trang được gắn nhãn là dữ liệu không đáng tin để chống prompt injection; giá trị trong kho bí mật được che trong mọi kết quả; nút <b>Dừng</b> trên trang kết thúc việc AI đang làm ngay lập tức.',
+      'Helmsman always runs with full access: the AI does everything without asking. Page text is labelled untrusted to resist prompt injection; secret values are masked in every result; the <b>Stop</b> button on the page ends what the AI is doing at once.',
     )}</p>
 
 <h2>${bi('8. Thay đổi và liên hệ', '8. Changes and contact')}</h2>
@@ -321,11 +325,11 @@ export function consentPage(v: ConsentView): string {
   const name = escapeHtml(v.clientName);
   const domain = v.clientDomain ? escapeHtml(v.clientDomain) : '';
   const origin = v.clientDomain
-    ? bi(`Ứng dụng của <b>${domain}</b>.`, `An app from <b>${domain}</b>.`)
+    ? bi('Ứng dụng của <b>{domain}</b>.', 'An app from <b>{domain}</b>.', { domain })
     : bi('Ứng dụng tự đăng ký, chưa được xác minh.', 'Self-registered app, not verified.');
   return layout(
     'Helmsman',
-    `<div class="card"><h2>${bi(`Cho phép <b>${name}</b> điều khiển Chrome của bạn?`, `Allow <b>${name}</b> to control your Chrome?`)}</h2>
+    `<div class="card"><h2>${bi('Cho phép <b>{name}</b> điều khiển Chrome của bạn?', 'Allow <b>{name}</b> to control your Chrome?', { name })}</h2>
 <p class="muted" style="margin:0">${origin} ${bi('Quyền truy cập sẽ gửi tới', 'Access will be sent to')} <b>${escapeHtml(v.redirectHost)}</b>.</p>
 ${v.redirectIsLoopback ? `<p class="notice">${bi('Quyền sẽ gửi tới một ứng dụng trên máy này. Chỉ tiếp tục nếu bạn vừa bấm kết nối từ ứng dụng đó.', 'Access goes to an app on this computer. Continue only if you just started the connection from that app.')}</p>` : ''}
 <form method="post">

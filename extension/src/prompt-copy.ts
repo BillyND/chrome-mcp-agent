@@ -1,7 +1,7 @@
 // What a confirmation says, shared by the on-page prompt and the popup so both use the same words:
 // a readable agent name, the title and detail line, and the label and look of each button.
 
-import { t, tf, type Key, type Lang } from './i18n';
+import { t, tf, type Lang } from './i18n';
 import type { Choice, PromptSpec } from './messages';
 
 const NAME_MAX = 30;
@@ -19,13 +19,13 @@ export function agentName(agent: string): string {
 }
 
 export function promptCopy(lang: Lang, spec: PromptSpec): { title: string; detail: string } {
-  const params = { agent: agentName(spec.agent), host: spec.host, label: spec.label, reason: spec.label, category: t(lang, `cat_${spec.category}` as Key) };
-  return { title: tf(lang, `prompt_${spec.kind}` as Key, params), detail: tf(lang, `prompt_${spec.kind}_detail` as Key, params) };
+  const params = { agent: agentName(spec.agent), host: spec.host, reason: spec.label };
+  return { title: tf(lang, 'prompt_handback', params), detail: tf(lang, 'prompt_handback_detail', params) };
 }
 
-export function choiceLabel(lang: Lang, spec: PromptSpec, choice: Choice): string {
-  return t(lang, (spec.kind === 'handback' && choice === 'decline' ? 'choice_cancel' : `choice_${choice}`) as Key);
+export function choiceLabel(lang: Lang, choice: Choice): string {
+  return t(lang, choice === 'decline' ? 'choice_cancel' : 'choice_done');
 }
 
 /** The filled button of a prompt: the answer most people want. */
-export const isPrimary = (choice: Choice): boolean => choice === 'always' || choice === 'approve' || choice === 'done';
+export const isPrimary = (choice: Choice): boolean => choice === 'done';

@@ -5,10 +5,7 @@
 // input on a tab never interleave. Calls without a tab queue per agent.
 
 import type { ToolContent } from '../../../../shared/protocol';
-import { finish, failureText, seal, siteGate } from '../policy/guard';
-import { targetUrlsOf } from '../policy/site-rules';
-import { getSettings } from '../policy/store';
-import { TOOL_BY_NAME } from '../../../../shared/tools';
+import { finish, failureText, seal } from '../policy/guard';
 import type { ActivityEntry } from '../../messages';
 import { protectContent } from '../output/protect';
 import { outputTools } from '../output/tools';
@@ -35,7 +32,7 @@ import { sessionTools } from './session';
 import { snapshotTools } from './snapshot';
 import { tabsTools } from './tabs';
 import { resolveTab } from './tab';
-import { justStopped, PAUSED, READ_ONLY, STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
+import { justStopped, PAUSED, STOPPED, text, ToolError, type Args, type ToolCtx, type ToolSpec } from './types';
 import { waitTools } from './wait';
 
 export { hideAgentBar, showAgentBar } from './overlay';
@@ -79,9 +76,6 @@ export interface ToolResult {
 const failure = (message: string, audit: ToolResult['audit'] = {}): Executed => ({ content: text(message), isError: true, audit: { outcome: 'error', ...audit }, seal: false, notes: [] });
 
 /** Runs a tool call and applies what every result gets on the way out: secrets hidden, output budget enforced. */
-/** Tools that only move around and look: allowed in "Read only" besides the catalog's read-only tools. */
-const BROWSE_TOOLS = new Set(['browser_tabs', 'browser_navigate', 'browser_scroll', 'browser_hover', 'browser_wait_for', 'browser_windows', 'browser_request_user', 'browser_secrets_list']);
-const readableTool = (name: string): boolean => TOOL_BY_NAME.get(name)?.readOnly === true || BROWSE_TOOLS.has(name);
 
 export async function runTool(
   name: string,
@@ -111,8 +105,6 @@ async function execute(
   if (justStopped()) return failure(STOPPED);
   const spec = TOOLS[name];
   if (!spec) return failure(`Unknown tool ${name}.`);
-  if (!readableTool(name) && (await getSettings()).accessMode === 'read') return failure(READ_ONLY(name));
-
   // Pressing Stop drops every call still waiting its turn; the running ones notice at their next step.
   const signal = state.abort.signal;
   const onStop = () => scheduler.cancelPending(new ToolError(STOPPED));
@@ -127,16 +119,10 @@ async function execute(
       ctx.tabId = tab.id!;
       lane = `tab:${tab.id}`;
     }
-    const targets = targetUrlsOf(name, input);
     const content = await scheduler.run(lane, async () => {
       if (state.paused) throw new ToolError(PAUSED);
       if (signal.aborted) throw new ToolError(STOPPED);
       if (spec.scope === 'tab') setRunningAgent(ctx.tabId, agent);
-      // Site rules come first: nothing touches the tab, or opens a target URL, before they pass.
-      // A tab sitting on a blocked site may still be navigated away.
-      const tab = ctx.tabId >= 0 && !(name === 'browser_navigate' && targets.length) ? await chrome.tabs.get(ctx.tabId).catch(() => null) : null;
-      if (tab?.url) await siteGate(ctx, tab.url);
-      for (const url of targets) await siteGate(ctx, url);
       const recorded = record ? await beginStep(agent, name, input, ctx) : undefined;
       const result = await spec.run(input, ctx);
       recorded?.();

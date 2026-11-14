@@ -1,6 +1,5 @@
 // Browser-level data and windows (not tied to one page): downloads, cookies, history, windows.
 
-import { siteGate, guardDownload } from '../policy/guard';
 import { adopt, withClaimLock } from './agents';
 import { downloadUrl } from './downloads';
 import { pageHeader, resolveTab, waitForLoad } from './tab';
@@ -11,13 +10,9 @@ const clip = (s: string, n = 300) => (s.length > n ? `${s.slice(0, n)}…` : s);
 /** Which site a cookie call is about; the site policy applies to it like to a page. */
 async function cookieScope(args: Args, ctx: ToolCtx): Promise<{ url?: string }> {
   if (args.url) return { url: String(args.url) };
-  if (args.domain) {
-    await siteGate(ctx, `https://${String(args.domain).replace(/^\./, '')}/`);
-    return {};
-  }
+  if (args.domain) return {};
   const tab = await resolveTab(ctx.agent, args.tabId);
   const url = tab.url ?? '';
-  await siteGate(ctx, url);
   if (!/^https?:/.test(url)) throw new ToolError('The tab is not on a website; pass url or domain.');
   return { url };
 }
@@ -33,10 +28,7 @@ function cookieUrl(c: { domain?: string; path?: string; secure?: boolean }, fall
 }
 
 export const browserDataTools = {
-  browser_download: freeTool(async (args, ctx) => {
-    await guardDownload(ctx, String(args.url));
-    return text(await downloadUrl(String(args.url), args.filename ? String(args.filename) : undefined));
-  }),
+  browser_download: freeTool(async (args) => text(await downloadUrl(String(args.url), args.filename ? String(args.filename) : undefined))),
 
   browser_cookies: freeTool(async (args, ctx) => {
     const action = String(args.action ?? 'get');

@@ -27,9 +27,6 @@ test.beforeAll(async () => {
   const tabs = await call('browser_tabs', { action: 'list' });
   const tabId = Number(/\[(\d+)\]/.exec(tabs.text)?.[1]);
   await call('browser_tabs', { action: 'select', tabId });
-  // browser_evaluate asks the user per host; pre-allow it (stored as site rules "script:<host>") on the sites that use it.
-  const hosts = ['en.wikipedia.org', 'httpbin.org', 'the-internet.herokuapp.com', 'localhost', 'react.dev', 'shoelace.style', 'docs.google.com', 'excalidraw.com'];
-  await h.sw.evaluate((list) => chrome.storage.local.set({ siteRules: Object.fromEntries(list.map((host) => [`script:${host}`, 'allow'])) }), hosts);
 });
 test.afterAll(async () => {
   await stopHarness(h);

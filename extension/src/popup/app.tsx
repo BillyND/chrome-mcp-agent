@@ -1,18 +1,16 @@
 import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { t, type Key } from '../i18n';
-import type { AccessMode, PopupState } from '../messages';
-import { PendingPrompts, SitesSection } from './sites-section';
+import type { PopupState } from '../messages';
+import { PendingPrompts } from './pending-prompts';
 import { SecretsSection } from './secrets-section';
-import { Badge, Button, Card, Collapsible, Input, ToggleGroup, ToggleGroupItem } from './ui/components';
+import { Badge, Button, Card, Collapsible, Input } from './ui/components';
 import { localSnippet } from '../../../shared/local-config';
 import { Icon } from './ui/icons';
 import { PrefsMenu } from './ui/prefs-menu';
 import { post, send } from './send';
 import { usePrefs } from './use-prefs';
 import { cn } from './ui/utils';
-
-const ACCESS_MODES: AccessMode[] = ['full', 'ask', 'read'];
 
 const DOT: Record<string, string> = {
   off: 'bg-muted-foreground',
@@ -193,23 +191,6 @@ function App() {
         </section>
       )}
 
-      <Collapsible id="access" title={tr('access')} count={tr(`access_${s.accessMode}`)}>
-        <ToggleGroup
-          type="single"
-          value={s.accessMode}
-          onValueChange={(v) => v && post({ type: 'set-access-mode', mode: v as AccessMode })}
-          aria-label={tr('access')}
-          className="grid grid-cols-3"
-        >
-          {ACCESS_MODES.map((m) => (
-            <ToggleGroupItem key={m} value={m} data-mode={m} className={cn('h-8 text-[13px]', m === 'full' && 'data-[state=on]:text-destructive')}>
-              {tr(`access_${m}`)}
-            </ToggleGroupItem>
-          ))}
-        </ToggleGroup>
-        <p id="access-hint" className="text-[13px] text-muted-foreground">{tr(`access_${s.accessMode}_hint`)}</p>
-      </Collapsible>
-
       <Collapsible id="local" title={tr('localMode')}>
         <span id="local-status" data-status={s.local.status} className="flex items-center gap-1.5 text-[13px] text-muted-foreground">
           <i className={cn('size-1.5 rounded-full', DOT[s.local.status])} />
@@ -219,7 +200,6 @@ function App() {
         <CodeBox id="local-config" value={snippet} label={tr('copy')} />
       </Collapsible>
 
-      <SitesSection s={s} lang={prefs.lang} />
       <SecretsSection lang={prefs.lang} />
 
       <footer className="flex justify-end">

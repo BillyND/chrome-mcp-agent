@@ -4,7 +4,7 @@
 import { runOverlay } from '../content/overlay';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const stopped = () => document.querySelector('helmsman-overlay')?.getAttribute('data-state') === 'hidden';
 
 /** Centre of an element in viewport coordinates, where the overlay draws. */
@@ -53,13 +53,6 @@ async function run() {
       () => typeInto(email, 'a@example.com'),
       () => clickOn(send),
       async () => {
-        // A sensitive action waits for the person, exactly like in Chrome.
-        await runOverlay({
-          type: 'prompt',
-          prompt: { id: 'demo', kind: 'sensitive', agent: 'claude-code', host: location.host, label: send.querySelector(`[data-l="${document.documentElement.lang}"]`)?.textContent ?? '', category: 'send', choices: ['approve', 'decline'] },
-        });
-        for (let i = 0; i < 50 && document.querySelector('helmsman-overlay') && !stopped(); i++) await sleep(100);
-        await runOverlay({ type: 'prompt-end', id: 'demo' });
         result.textContent = '✓';
       },
       // Resting between steps: the cursor sways while the AI thinks.
