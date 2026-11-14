@@ -181,7 +181,7 @@ ${LOCAL_CHECK}
   ];
 }
 
-const DOWNLOAD = `<div class="row" style="margin-top:12px"><a class="btn" href="/chrome-mcp-agent.zip" download>${bi('Tải extension (.zip)', 'Download extension (.zip)')}</a></div>`;
+const DOWNLOAD = `<div class="row" style="margin-top:12px"><a class="btn" href="/browser-use-bridge.zip" download>${bi('Tải extension (.zip)', 'Download extension (.zip)')}</a></div>`;
 
 const tabItem = `${segmentedItemClass} h-8 px-3 text-[13px]`;
 
@@ -223,7 +223,7 @@ ${footer}`,
   );
 }
 
-export const REPO_URL = 'https://github.com/BillyND/chrome-mcp-agent';
+export const REPO_URL = 'https://github.com/BillyND/browser-use-bridge';
 
 const footer = `<footer><a href="/demo">${bi('Xem demo', 'Demo')}</a><a href="/privacy">${bi('Chính sách quyền riêng tư', 'Privacy policy')}</a><a href="${REPO_URL}">GitHub</a></footer>`;
 

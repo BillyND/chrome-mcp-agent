@@ -127,7 +127,7 @@ Quy trình cũng được cung cấp dưới dạng **MCP prompts** (`prompts/li
 - **Deploy lại sau khi sửa code**: `npm run setup`. Script tự tạo KV, deploy, đặt secret và đóng gói extension, đồng thời cập nhật file zip trên trang chủ. Chạy lại nhiều lần vẫn an toàn.
 - **Đặt mật khẩu nhóm** (để người lạ tải extension cũng không dùng được): `ACCESS_PASSWORD=matkhau npm run setup`. Mỗi người nhập mật khẩu này một lần khi bấm Kết nối.
 - **Kiểm tra server thật**: `node scripts/pack-extension.mjs && node scripts/live-check.mjs`. Script chạy một Chromium có extension, kết nối như ChatGPT, rồi gõ và bấm trong iframe khác domain và iframe lồng thông qua Cloudflare.
-- **Đăng lên Chrome Web Store** (tuỳ chọn, để có link cài một click và tự cập nhật): upload `extension/chrome-mcp-agent.zip` ở chế độ *Unlisted*. Phí developer 5 USD, trả một lần.
+- **Đăng lên Chrome Web Store** (tuỳ chọn, để có link cài một click và tự cập nhật): upload `extension/browser-use-bridge.zip` ở chế độ *Unlisted*. Phí developer 5 USD, trả một lần.
 
 ## Phát triển
 

@@ -5,7 +5,7 @@ export interface Env {
   OAUTH_KV: KVNamespace;
   HUB: DurableObjectNamespace<DeviceHub>;
   OAUTH_PROVIDER: OAuthHelpers;
-  /** Public origin of this Worker, e.g. https://chrome-mcp-agent.example.workers.dev */
+  /** Public origin of this Worker, e.g. https://browser-use-bridge.example.workers.dev */
   PUBLIC_URL: string;
   /** Optional group password asked once when an extension connects. Unset means anyone with the extension. */
   ACCESS_PASSWORD?: string;

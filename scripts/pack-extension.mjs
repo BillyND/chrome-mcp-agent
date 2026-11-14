@@ -1,4 +1,4 @@
-// Builds the extension into extension/unpacked and packs extension/chrome-mcp-agent.zip.
+// Builds the extension into extension/unpacked and packs extension/browser-use-bridge.zip.
 // Usage: [HELMSMAN_PORT=47821] node scripts/pack-extension.mjs [--dev] [--gateway https://...]
 //   HELMSMAN_PORT  port of the local MCP server the extension's "Local mode" connects to
 //   --dev      points at http://localhost:$E2E_PORT (default 8787; used by the e2e tests)
@@ -86,7 +86,7 @@ fs.writeFileSync(path.join(out, 'manifest.json'), JSON.stringify(manifest, null,
 for (const f of fs.readdirSync(path.join(ext, 'public'))) fs.copyFileSync(path.join(ext, 'public', f), path.join(out, f));
 writeIcons(path.join(out, 'icons'));
 
-const zip = path.join(ext, 'chrome-mcp-agent.zip');
+const zip = path.join(ext, 'browser-use-bridge.zip');
 fs.rmSync(zip, { force: true });
 try {
   execFileSync('zip', ['-qr', zip, '.'], { cwd: out });
@@ -95,6 +95,6 @@ try {
 }
 // The gateway serves the zip from its landing page (Workers static assets).
 if (fs.existsSync(zip)) {
-  fs.copyFileSync(zip, path.join(assets, 'chrome-mcp-agent.zip'));
+  fs.copyFileSync(zip, path.join(assets, 'browser-use-bridge.zip'));
 }
 console.log(`Built extension for ${gateway} -> ${path.relative(root, out)} (+ ${path.relative(root, zip)})`);

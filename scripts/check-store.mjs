@@ -1,4 +1,4 @@
-// Validates that extension/chrome-mcp-agent.zip is ready for the Chrome Web Store.
+// Validates that extension/browser-use-bridge.zip is ready for the Chrome Web Store.
 // Usage: node scripts/pack-extension.mjs && node scripts/check-store.mjs   (or: npm run check:store)
 //
 // Checks the manifest, the icons inside the zip, that the zip is a production build (no source maps,
@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const zipPath = path.join(root, 'extension', 'chrome-mcp-agent.zip');
+const zipPath = path.join(root, 'extension', 'browser-use-bridge.zip');
 const failures = [];
 const check = (ok, message) => {
   console.log(`${ok ? 'ok  ' : 'FAIL'} ${message}`);

@@ -89,6 +89,6 @@ Mỗi người tự làm 4 bước trên. Mỗi người có mã riêng, chỉ �
    npm run check:store
    ```
    Lệnh kiểm tra phải báo **Store package looks ready**.
-3. Bấm **New item** và upload `extension/chrome-mcp-agent.zip`.
+3. Bấm **New item** và upload `extension/browser-use-bridge.zip`.
 4. Điền nội dung theo `docs/store/listing.md`. Ảnh có sẵn trong `docs/store/screenshots/`. Chính sách quyền riêng tư: https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/privacy
 5. Chọn **Unlisted** nếu chỉ dùng cho nhóm bạn, rồi bấm **Submit for review**.

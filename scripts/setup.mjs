@@ -44,7 +44,7 @@ try {
 
   step('KV namespace for OAuth state');
   if (fs.readFileSync(config, 'utf8').includes('REPLACE_WITH_KV_ID')) {
-    const out = wrangler(['kv', 'namespace', 'create', 'chrome-mcp-agent-oauth']);
+    const out = wrangler(['kv', 'namespace', 'create', 'browser-use-bridge-oauth']);
     const id = /"id":\s*"([0-9a-f]{32})"/.exec(out)?.[1] ?? /id = "([0-9a-f]{32})"/.exec(out)?.[1];
     if (!id) throw new Error(`Could not read the KV namespace id from:\n${out}`);
     setConfig('REPLACE_WITH_KV_ID', id);
@@ -79,7 +79,7 @@ try {
   console.log(`\n✅ Done.
    Landing page:   ${url}
    MCP URL:        ${url}/mcp
-   Extension:      download button on the landing page (also extension/chrome-mcp-agent.zip)`);
+   Extension:      download button on the landing page (also extension/browser-use-bridge.zip)`);
 } catch (e) {
   console.error(e.message ?? e);
   process.exit(1);

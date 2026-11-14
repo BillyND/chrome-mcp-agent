@@ -13,7 +13,7 @@ Privacy policy URL: `https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/priva
 | Category | Productivity (alt: Developer Tools) |
 | Language | English (listing translated to Vietnamese below) |
 | Homepage | `https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/` |
-| Support | `https://github.com/BillyND/chrome-mcp-agent/issues` |
+| Support | `https://github.com/BillyND/browser-use-bridge/issues` |
 
 ## Description (English)
 
@@ -36,7 +36,7 @@ Privacy policy URL: `https://chrome-mcp-agent.chrome-mcp-agent.workers.dev/priva
 >
 > Two ways to connect, no account needed: Cloud mode (ChatGPT connector with a one-time connection code) or Local mode (an MCP server on 127.0.0.1 for desktop clients). Page content goes only to the AI client you connect. Nothing is sold or shared.
 >
-> Requires an AI client that supports MCP. Open source: https://github.com/BillyND/chrome-mcp-agent
+> Requires an AI client that supports MCP. Open source: https://github.com/BillyND/browser-use-bridge
 
 ## Mô tả (Tiếng Việt)
 
@@ -61,7 +61,7 @@ Tóm tắt: `Cho ChatGPT, Claude và các AI khác điều khiển trình duyệ
 >
 > Hai cách kết nối, không cần tài khoản: chế độ đám mây (connector ChatGPT với mã kết nối dùng một lần) hoặc chế độ cục bộ (server MCP trên 127.0.0.1 cho client trên máy). Nội dung trang chỉ đi tới client AI bạn kết nối. Không bán hay chia sẻ dữ liệu.
 >
-> Cần client AI hỗ trợ MCP. Mã nguồn mở: https://github.com/BillyND/chrome-mcp-agent
+> Cần client AI hỗ trợ MCP. Mã nguồn mở: https://github.com/BillyND/browser-use-bridge
 
 ## Single purpose
 
@@ -164,6 +164,6 @@ Screenshots (regenerate with `npm run store:shots` while `wrangler dev` runs on 
 ## Publishing checklist
 
 1. `npm run pack:ext` (production build, points at the deployed gateway) and `npm run check:store`.
-2. Upload `extension/chrome-mcp-agent.zip`.
+2. Upload `extension/browser-use-bridge.zip`.
 3. Fill the listing from this file; set the privacy policy URL to `/privacy` on the gateway; choose visibility (Unlisted first is fine).
 4. Dashboard fee is 5 USD, paid once.

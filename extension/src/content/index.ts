@@ -15,11 +15,11 @@ import { readVisibleText } from './visibility';
 
 declare global {
   interface Window {
-    __chromeMcpAgent?: boolean;
+    __browserUseBridge?: boolean;
   }
 }
 
-const ANNOUNCE = '__chrome_mcp_agent_announce__';
+const ANNOUNCE = '__browser_use_bridge_announce__';
 
 function deepElementFromPoint(x: number, y: number): Element | null {
   let el = document.elementFromPoint(x, y);
@@ -346,8 +346,8 @@ async function handle(req: FrameRequest): Promise<unknown> {
   }
 }
 
-if (!window.__chromeMcpAgent) {
-  window.__chromeMcpAgent = true;
+if (!window.__browserUseBridge) {
+  window.__browserUseBridge = true;
 
   chrome.runtime.onMessage.addListener((req: FrameRequest, _sender, sendResponse: (r: FrameResponse) => void) => {
     if (!req || typeof req !== 'object' || !('cmd' in req)) return false;

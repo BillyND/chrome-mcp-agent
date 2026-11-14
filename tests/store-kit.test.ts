@@ -17,7 +17,7 @@ describe('privacy policy page', () => {
     expect(html).toContain('OAuth grants');
     expect(html).toContain('connection code');
     expect(html).toContain('does not store');
-    expect(html).toContain('github.com/BillyND/chrome-mcp-agent/issues');
+    expect(html).toContain('github.com/BillyND/browser-use-bridge/issues');
   });
 
   it('explains every manifest permission', () => {
